@@ -9,6 +9,8 @@
 #include <iostream>
 #include <vector>
 
+
+#include <tbb/parallel_for.h>
 // DBoW2
 #include "DBoW2.h" // defines OrbVocabulary and OrbDatabase
 
@@ -17,9 +19,11 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
 
-
+#include <iomanip>
+#include <chrono>
 using namespace DBoW2;
 using namespace std;
+using namespace tbb;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -32,7 +36,7 @@ void testDatabase(const vector<vector<cv::Mat > > &features);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // number of training images
-const int NIMAGES = 4;
+const int NIMAGES = 25;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -46,9 +50,11 @@ void wait()
 
 int main()
 {
+//  parallel_for(0, 3, [&](int i) {
+//    int a = 2;
+//  });
   vector<vector<cv::Mat > > features;
   loadFeatures(features);
-
   testVocCreation(features);
 
   wait();
@@ -71,7 +77,8 @@ void loadFeatures(vector<vector<cv::Mat > > &features)
   for(int i = 0; i < NIMAGES; ++i)
   {
     stringstream ss;
-    ss << "images/image" << i << ".png";
+
+    ss << "/home/kwx682561/Downloads/00/image_0/" << setfill('0') << setw(6) << i << ".png";
 
     cv::Mat image = cv::imread(ss.str(), 0);
     cv::Mat mask;
@@ -102,38 +109,40 @@ void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out)
 void testVocCreation(const vector<vector<cv::Mat > > &features)
 {
   // branching factor and depth levels 
-  const int k = 9;
-  const int L = 3;
+  const int k = 2;
+  const int L = 5;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
 
   OrbVocabulary voc(k, L, weight, score);
 
   cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
+  auto statrt = std::chrono::high_resolution_clock::now();
   voc.create(features);
-  cout << "... done!" << endl;
-
-  cout << "Vocabulary information: " << endl
-  << voc << endl << endl;
+  auto end = std::chrono::high_resolution_clock::now();
+  cout << "time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//
+//  cout << "Vocabulary information: " << endl
+//  << voc << endl << endl;
 
   // lets do something with this vocabulary
-  cout << "Matching images against themselves (0 low, 1 high): " << endl;
-  BowVector v1, v2;
-  for(int i = 0; i < NIMAGES; i++)
-  {
-    voc.transform(features[i], v1);
-    for(int j = 0; j < NIMAGES; j++)
-    {
-      voc.transform(features[j], v2);
-      
-      double score = voc.score(v1, v2);
-      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
-    }
-  }
-
-  // save the vocabulary to disk
-  cout << endl << "Saving vocabulary..." << endl;
-  voc.save("small_voc.yml.gz");
+//  cout << "Matching images against themselves (0 low, 1 high): " << endl;
+//  BowVector v1, v2;
+//  for(int i = 0; i < NIMAGES; i++)
+//  {
+//    voc.transform(features[i], v1);
+//    for(int j = 0; j < NIMAGES; j++)
+//    {
+//      voc.transform(features[j], v2);
+//
+//      double score = voc.score(v1, v2);
+////      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+//    }
+//  }
+//
+//  // save the vocabulary to disk
+//  cout << endl << "Saving vocabulary..." << endl;
+//  voc.save("small_voc.yml.gz");
   cout << "Done" << endl;
 }
 
