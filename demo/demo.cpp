@@ -36,7 +36,7 @@ void testDatabase(const vector<vector<cv::Mat > > &features);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // number of training images
-const int NIMAGES = 25;
+const int NIMAGES = 250;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -55,7 +55,9 @@ int main()
 //  });
   vector<vector<cv::Mat > > features;
   loadFeatures(features);
-  testVocCreation(features);
+  for (int i = 0; i < 20; ++i) {
+    testVocCreation(features);
+  }
 
   wait();
 
@@ -110,7 +112,7 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
 {
   // branching factor and depth levels 
   const int k = 2;
-  const int L = 5;
+  const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
 
