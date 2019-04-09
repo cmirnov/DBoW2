@@ -654,7 +654,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
   const std::vector<pDescriptor> &descriptors, int current_level)
 {
   taskMutex.lock();
-  std::cout << current_level << std::endl;
+//  std::cout << current_level << std::endl;
 
   taskMutex.unlock();
   if(descriptors.empty()) return;
@@ -698,7 +698,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
     while(goon)
     {
       taskMutex.lock();
-      std::cout << "level: " << current_level << std::endl;
+//      std::cout << "level: " << current_level << std::endl;
 
       taskMutex.unlock();
 //      std::cout << "threading " << current_level << std::endl;
@@ -711,20 +711,20 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
 //
 //        taskMutex.unlock();
         taskMutex.lock();
-        std::cout << "first: " << current_level << std::endl;
+//        std::cout << "first: " << current_level << std::endl;
 //        clusters.resize(0);
 //        int temp = m_k > descriptors.size() ? descriptors.size() : m_k;
 //        for (int i =0 ; i  < temp; ++i) {
 //          clusters.push_back(*descriptors[i]);
 //        }
         initiateClusters(descriptors, clusters);
-        std::cout << "first done " << current_level << std::endl;
+//        std::cout << "first done " << current_level << std::endl;
         taskMutex.unlock();
       }
       else
       {
         taskMutex.lock();
-        std::cout << "level3: " << current_level << std::endl;
+//        std::cout << "level3: " << current_level << std::endl;
 
         taskMutex.unlock();
         // calculate cluster centres
@@ -760,7 +760,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
       // 2. Associate features with clusters
 
       taskMutex.lock();
-      std::cout << "level2: " << current_level << std::endl;
+//      std::cout << "level2: " << current_level << std::endl;
 
       taskMutex.unlock();
       // calculate distances to cluster centers
@@ -770,7 +770,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
 
       //assoc.clear();
       taskMutex.lock();
-      std::cout << "working1: " << current_level << std::endl;
+//      std::cout << "working1: " << current_level << std::endl;
 
       taskMutex.unlock();
       typename std::vector<pDescriptor>::const_iterator fit;
@@ -983,7 +983,7 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 //    std::cout << *dit << std::endl;
     *dit = F::distance(*(*fit), clusters.back());
   }
-  std::cout << "running\n";
+//  std::cout << "running\n";
   while((int)clusters.size() < m_k)
   {
     // 2.
@@ -995,7 +995,7 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 //      }
 ////        min_dists[i] = F::distance(*pfeatures[i], clusters.back());
 //    });
-    std::cout << "before for\n";
+//    std::cout << "before for\n";
     for(fit = pfeatures.begin(); fit != pfeatures.end(); ++fit, ++dit)
     {
 //      std::cout << *dit << std::endl;
@@ -1039,7 +1039,23 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 //    std::cout << cl << std::endl;
 //  }
 //  std::cout << std::endl;
+/*
+ * 125000
+125000
+67016
+67016
+39448
+39448
+27568
+27568
+57984
+57984
+35616
+35616
+22368
+22368
 
+ */
 }
 
 // --------------------------------------------------------------------------
