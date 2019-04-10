@@ -36,7 +36,7 @@ void testDatabase(const vector<vector<cv::Mat > > &features);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // number of training images
-const int NIMAGES = 250;
+const int NIMAGES = 1000;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -55,8 +55,9 @@ int main()
 //  });
   vector<vector<cv::Mat > > features;
   loadFeatures(features);
-  for (int i = 0; i < 20; ++i) {
+  for (int i = 0; i < 15; ++i) {
     testVocCreation(features);
+//    std::cout << "\n\n\n";
   }
 
   wait();
@@ -110,8 +111,9 @@ void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out)
 
 void testVocCreation(const vector<vector<cv::Mat > > &features)
 {
-  // branching factor and depth levels 
-  const int k = 2;
+//       5539799825
+// branching factor and depth levels
+  const int k = 9;
   const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
@@ -127,7 +129,7 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
 //  cout << "Vocabulary information: " << endl
 //  << voc << endl << endl;
 
-  // lets do something with this vocabulary
+//   lets do something with this vocabulary
 //  cout << "Matching images against themselves (0 low, 1 high): " << endl;
 //  BowVector v1, v2;
 //  for(int i = 0; i < NIMAGES; i++)
@@ -138,10 +140,10 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
 //      voc.transform(features[j], v2);
 //
 //      double score = voc.score(v1, v2);
-////      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+//      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
 //    }
 //  }
-//
+
 //  // save the vocabulary to disk
 //  cout << endl << "Saving vocabulary..." << endl;
 //  voc.save("small_voc.yml.gz");
