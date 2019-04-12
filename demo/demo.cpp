@@ -13,7 +13,7 @@
 #include <tbb/parallel_for.h>
 // DBoW2
 #include "DBoW2.h" // defines OrbVocabulary and OrbDatabase
-
+#include <chrono>
 // OpenCV
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -55,7 +55,7 @@ int main()
 //  });
   vector<vector<cv::Mat > > features;
   loadFeatures(features);
-  for (int i = 0; i < 15; ++i) {
+  for (int i = 0; i < 1; ++i) {
     testVocCreation(features);
 //    std::cout << "\n\n\n";
   }
@@ -113,7 +113,7 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
 {
 //       5539799825
 // branching factor and depth levels
-  const int k = 9;
+  const int k = 5;
   const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
@@ -121,17 +121,17 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
   OrbVocabulary voc(k, L, weight, score);
 
   cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
-  auto statrt = std::chrono::high_resolution_clock::now();
-  voc.create(features);
-  auto end = std::chrono::high_resolution_clock::now();
-  cout << "time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//  auto statrt = std::chrono::high_resolution_clock::now();
+  voc.create2(features);
+//  auto end = std::chrono::high_resolution_clock::now();
+//  cout << "time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
 //
 //  cout << "Vocabulary information: " << endl
 //  << voc << endl << endl;
 
 //   lets do something with this vocabulary
 //  cout << "Matching images against themselves (0 low, 1 high): " << endl;
-//  BowVector v1, v2;
+  BowVector v1, v2;
 //  for(int i = 0; i < NIMAGES; i++)
 //  {
 //    voc.transform(features[i], v1);
