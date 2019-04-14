@@ -12,8 +12,12 @@
 #include <sstream>
 #include <stdint.h>
 #include <limits.h>
+#include <tbb/concurrent_vector.h>
 
 #include "FORB.h"
+
+#include <tbb/parallel_reduce.h>
+#include <tbb/blocked_range.h>
 
 using namespace std;
 
@@ -35,26 +39,191 @@ void FORB::meanValue(const std::vector<FORB::pDescriptor> &descriptors,
   }
   else
   {
-    vector<int> sum(FORB::L * 8, 0);
-    
-    for(size_t i = 0; i < descriptors.size(); ++i)
-    {
-      const cv::Mat &d = *descriptors[i];
-      const unsigned char *p = d.ptr<unsigned char>();
-      
-      for(int j = 0; j < d.cols; ++j, ++p)
-      {
-        if(*p & (1 << 7)) ++sum[ j*8     ];
-        if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
-        if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
-        if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
-        if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
-        if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
-        if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
-        if(*p & (1))      ++sum[ j*8 + 7 ];
-      }
+    vector<const unsigned char*> descriptors2(descriptors.size());
+//        vector<int> a;
+//        unsigned char* descriptors2[descriptors.size()];
+    for (int i = 0; i < descriptors.size(); ++i) {
+      descriptors2[i] = (*descriptors[i]).ptr<unsigned char>();
     }
-    
+    int cols = (*descriptors[0]).cols;
+//    vector<int> sum(FORB::L * 8, 0);
+    typedef tbb::blocked_range<vector<const unsigned char*>::iterator> range_type;
+    vector<int> sum = tbb::parallel_reduce(range_type(descriptors2.begin(), descriptors2.end()),
+//            descriptors2,
+       vector<int>(FORB::L * 8, 0),
+       [](range_type& desc, vector<int> sum)->vector<int>{
+
+           for(auto it = desc.begin(); it != desc.end(); ++it)
+           {
+             const unsigned char *p = (*it);
+             for(int j = 0; j < FORB::L; ++j, ++p)
+             {
+               if(*p & (1 << 7)) ++sum[ j*8     ];
+               if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
+               if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
+               if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
+               if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
+               if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
+               if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
+               if(*p & (1))      ++sum[ j*8 + 7 ];
+             }
+           }
+           return sum;
+       },
+       [](vector<int> a, vector<int> b)->vector<int> {
+           vector<int> sum(FORB::L * 8, 0);
+           for (int i = 0; i < FORB::L * 8; ++i) {
+             sum[i] = a[i] + b[i];
+           }
+           return sum;
+       });
+//    for(size_t i = 0; i < descriptors.size(); ++i)
+//    {
+//      const cv::Mat &d = *descriptors[i];
+//      const unsigned char *p = d.ptr<unsigned char>();
+//
+//      for(int j = 0; j < d.cols; ++j, ++p)
+//      {
+//        if(*p & (1 << 7)) ++sum[ j*8     ];
+//        if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
+//        if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
+//        if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
+//        if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
+//        if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
+//        if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
+//        if(*p & (1))      ++sum[ j*8 + 7 ];
+//      }
+//    }
+
+    mean = cv::Mat::zeros(1, FORB::L, CV_8U);
+    unsigned char *p = mean.ptr<unsigned char>();
+
+    const int N2 = (int)descriptors.size() / 2 + descriptors.size() % 2;
+    for(size_t i = 0; i < sum.size(); ++i)
+    {
+      if(sum[i] >= N2)
+      {
+        // set bit
+        *p |= 1 << (7 - (i % 8));
+      }
+
+      if(i % 8 == 7) ++p;
+    }
+  }
+//  {
+//    vector<int> sum(FORB::L * 8, 0);
+//
+//    for(size_t i = 0; i < descriptors.size(); ++i)
+//    {
+//      const cv::Mat &d = *descriptors[i];
+//      const unsigned char *p = d.ptr<unsigned char>();
+//
+//      for(int j = 0; j < d.cols; ++j, ++p)
+//      {
+//        if(*p & (1 << 7)) ++sum[ j*8     ];
+//        if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
+//        if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
+//        if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
+//        if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
+//        if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
+//        if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
+//        if(*p & (1))      ++sum[ j*8 + 7 ];
+//      }
+//    }
+//
+//    mean = cv::Mat::zeros(1, FORB::L, CV_8U);
+//    unsigned char *p = mean.ptr<unsigned char>();
+//
+//    const int N2 = (int)descriptors.size() / 2 + descriptors.size() % 2;
+//    for(size_t i = 0; i < sum.size(); ++i)
+//    {
+//      if(sum[i] >= N2)
+//      {
+//        // set bit
+//        *p |= 1 << (7 - (i % 8));
+//      }
+//
+//      if(i % 8 == 7) ++p;
+//    }
+//  }
+}
+
+
+
+void FORB::meanValue(const tbb::concurrent_vector<FORB::pDescriptor> &descriptors,
+                     FORB::TDescriptor &mean)
+{
+  if(descriptors.empty())
+  {
+    mean.release();
+    return;
+  }
+  else if(descriptors.size() == 1)
+  {
+    mean = descriptors[0]->clone();
+  }
+  else
+  {
+      vector<const unsigned char*> descriptors2(descriptors.size());
+//        vector<int> a;
+//        unsigned char* descriptors2[descriptors.size()];
+      for (int i = 0; i < descriptors.size(); ++i) {
+          descriptors2[i] = (*descriptors[i]).ptr<unsigned char>();
+      }
+      int grain_size = 1;
+      int cols = (*descriptors[0]).cols;
+//    vector<int> sum(FORB::L * 8, 0);
+        typedef tbb::blocked_range<vector<const unsigned char*>::iterator> range_type;
+        vector<int> sum = tbb::parallel_reduce(range_type(descriptors2.begin(), descriptors2.end(), grain_size),
+//            descriptors2,
+            vector<int>(FORB::L * 8, 0),
+            [](range_type& desc, vector<int> sum)->vector<int>{
+                for(auto it = desc.begin(); it != desc.end(); ++it)
+                {
+//                    const cv::Mat *d = (*it);
+//                    const unsigned char *p = d->ptr<unsigned char>();
+                    const unsigned char *p = (*it);
+//                    tbb::parallel_reduce(tbb::blocked_range<const unsigned char*>(p, p + L),
+
+                    for(int j = 0; j < FORB::L; ++j, ++p)
+                    {
+                        if(*p & (1 << 7)) ++sum[ j*8     ];
+                        if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
+                        if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
+                        if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
+                        if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
+                        if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
+                        if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
+                        if(*p & (1))      ++sum[ j*8 + 7 ];
+                    }
+                }
+                return sum;
+            },
+            [](vector<int> a, vector<int> b)->vector<int> {
+                vector<int> sum(FORB::L * 8, 0);
+                for (int i = 0; i < FORB::L * 8; ++i) {
+                    sum[i] = a[i] + b[i];
+                }
+                return sum;
+            });
+//    for(size_t i = 0; i < descriptors.size(); ++i)
+//    {
+//      const cv::Mat &d = *descriptors[i];
+//      const unsigned char *p = d.ptr<unsigned char>();
+//
+//      for(int j = 0; j < d.cols; ++j, ++p)
+//      {
+//        if(*p & (1 << 7)) ++sum[ j*8     ];
+//        if(*p & (1 << 6)) ++sum[ j*8 + 1 ];
+//        if(*p & (1 << 5)) ++sum[ j*8 + 2 ];
+//        if(*p & (1 << 4)) ++sum[ j*8 + 3 ];
+//        if(*p & (1 << 3)) ++sum[ j*8 + 4 ];
+//        if(*p & (1 << 2)) ++sum[ j*8 + 5 ];
+//        if(*p & (1 << 1)) ++sum[ j*8 + 6 ];
+//        if(*p & (1))      ++sum[ j*8 + 7 ];
+//      }
+//    }
+
     mean = cv::Mat::zeros(1, FORB::L, CV_8U);
     unsigned char *p = mean.ptr<unsigned char>();
     

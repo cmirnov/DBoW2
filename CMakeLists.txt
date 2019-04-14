@@ -18,7 +18,7 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
   endif()
 elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic -std=c++11")
 endif()
 
 set(HDRS
@@ -47,8 +47,8 @@ if(BUILD_DBoW2)
 endif(BUILD_DBoW2)
 
 if(BUILD_Demo)
-  add_executable(demo demo/demo.cpp)
-  target_link_libraries(demo ${PROJECT_NAME} ${OpenCV_LIBS})
+  add_executable(Demo demo/demo.cpp)
+  target_link_libraries(Demo ${PROJECT_NAME} ${OpenCV_LIBS})
   file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
 endif(BUILD_Demo)
 
