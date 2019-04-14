@@ -36,7 +36,7 @@ void testDatabase(const vector<vector<cv::Mat > > &features);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // number of training images
-const int NIMAGES = 1000;
+const int NIMAGES = 5;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -81,7 +81,7 @@ void loadFeatures(vector<vector<cv::Mat > > &features)
   {
     stringstream ss;
 
-    ss << "/home/kwx682561/Downloads/00/image_0/" << setfill('0') << setw(6) << i << ".png";
+    ss << "/home/kirill/Desktop/UNI/visual-similarity-metrics/data/KITTi/dataset/sequences/00/image_0/" << setfill('0') << setw(6) << i << ".png";
 
     cv::Mat image = cv::imread(ss.str(), 0);
     cv::Mat mask;
@@ -113,41 +113,42 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
 {
 //       5539799825
 // branching factor and depth levels
-  const int k = 5;
+  const int k = 3;
   const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
 
   OrbVocabulary voc(k, L, weight, score);
 
-  cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
+//  cout << "Creating a small " << k << "^" << L << " vocabulary..." << endl;
 //  auto statrt = std::chrono::high_resolution_clock::now();
-  voc.create2(features);
+  voc.create(features);
 //  auto end = std::chrono::high_resolution_clock::now();
-//  cout << "time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//  cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//  temp +=  std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count()
 //
 //  cout << "Vocabulary information: " << endl
 //  << voc << endl << endl;
 
 //   lets do something with this vocabulary
-//  cout << "Matching images against themselves (0 low, 1 high): " << endl;
+  cout << "Matching images against themselves (0 low, 1 high): " << endl;
   BowVector v1, v2;
-//  for(int i = 0; i < NIMAGES; i++)
-//  {
-//    voc.transform(features[i], v1);
-//    for(int j = 0; j < NIMAGES; j++)
-//    {
-//      voc.transform(features[j], v2);
-//
-//      double score = voc.score(v1, v2);
-//      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
-//    }
-//  }
+  for(int i = 0; i < NIMAGES; i++)
+  {
+    voc.transform(features[i], v1);
+    for(int j = 0; j < NIMAGES; j++)
+    {
+      voc.transform(features[j], v2);
+
+      double score = voc.score(v1, v2);
+      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+    }
+  }
 
 //  // save the vocabulary to disk
 //  cout << endl << "Saving vocabulary..." << endl;
 //  voc.save("small_voc.yml.gz");
-  cout << "Done" << endl;
+//  cout << "Done" << endl;
 }
 
 // ----------------------------------------------------------------------------
