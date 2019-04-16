@@ -37,7 +37,8 @@ public:
    */
   static void meanValue(const std::vector<pDescriptor> &descriptors, 
     TDescriptor &mean);
-  
+    static void meanValue(const tbb::concurrent_vector<pDescriptor> &descriptors,
+                          TDescriptor &mean);
   /**
    * Calculates the distance between two descriptors
    * @param a
