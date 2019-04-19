@@ -802,106 +802,6 @@ void TemplatedVocabulary<TDescriptor, F>::kmeansIter
         }
         last_association = current_association;
     }
-//    std::cout << num << std::endl;
-//    for (int i = 0; i < groups.size(); ++i) {
-//        std::cout << groups[i].size() << std::endl;
-//        for (int j = 0; j < groups[i].size(); ++j) {
-//            std::cout << groups[i][j] << " ";
-//        }
-//        std::cout << std::endl;
-//    }
-        // 1. Calculate clusters
-//
-//
-//            // calculate cluster centres
-//
-//        for(unsigned int c = 0; c < clusters.size(); ++c)
-//        {
-//            std::vector<pDescriptor> cluster_descriptors;
-//            cluster_descriptors.reserve(groups[c].size());
-//
-//            /*
-//            for(unsigned int d = 0; d < descriptors.size(); ++d)
-//            {
-//              if( assoc.find<unsigned char>(c, d) )
-//              {
-//                cluster_descriptors.push_back(descriptors[d]);
-//              }
-//            }
-//            */
-//
-//            std::vector<unsigned int>::const_iterator vit;
-//            for(vit = groups[c].begin(); vit != groups[c].end(); ++vit)
-//            {
-//                cluster_descriptors.push_back(descriptors[*vit]);
-//            }
-//
-//
-//            F::meanValue(cluster_descriptors, clusters[c]);
-//        }
-//
-//        // 2. Associate features with clusters
-//
-//        // calculate distances to cluster centers
-//        groups.clear();
-//        groups.resize(clusters.size(), std::vector<unsigned int>());
-//        current_association.resize(descriptors.size());
-//
-//        //assoc.clear();
-//
-//        typename std::vector<pDescriptor>::const_iterator fit;
-//        //unsigned int d = 0;
-//        for(fit = descriptors.begin(); fit != descriptors.end(); ++fit)//, ++d)
-//        {
-//            double best_dist = F::distance(*(*fit), clusters[0]);
-//            unsigned int icluster = 0;
-//
-//            for(unsigned int c = 1; c < clusters.size(); ++c)
-//            {
-//                double dist = F::distance(*(*fit), clusters[c]);
-//                if(dist < best_dist)
-//                {
-//                    best_dist = dist;
-//                    icluster = c;
-//                }
-//            }
-//
-//            //assoc.ref<unsigned char>(icluster, d) = 1;
-//
-//            groups[icluster].push_back(fit - descriptors.begin());
-//            current_association[ fit - descriptors.begin() ] = icluster;
-//        }
-//
-//        // kmeans++ ensures all the clusters has any feature associated with them
-//
-//        // 3. check convergence
-//        if(first_time)
-//        {
-//            first_time = false;
-//        }
-//        else
-//        {
-//            //goon = !eqUChar(last_assoc, assoc);
-//
-//            goon = false;
-//            for(unsigned int i = 0; i < current_association.size(); i++)
-//            {
-//                if(current_association[i] != last_association[i]){
-//                    goon = true;
-//                    break;
-//                }
-//            }
-//        }
-//
-//        if(goon)
-//        {
-//            // copy last feature-cluster association
-//            last_association = current_association;
-//            //last_assoc = assoc.clone();
-//        }
-//
-//    } // while(goon)
-
 }
 
 template<class TDescriptor, class F>
@@ -910,25 +810,16 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
     if(!size) return;
     // features associated to each cluster
     std::vector<TDescriptor> clusters;
-//    std::vector<tbb::concurrent_vector<unsigned int> > groups; // groups[i] = [j1, j2, ...]
-    // j1, j2, ... indices of descriptors associated to cluster i
 
     clusters.reserve(m_k);
-//    groups.reserve(m_k);
-
 
     int descriptors_num = descriptors.size();
     int clusters_num = m_k;
     std::vector<concurrent_vector<pDescriptor>> cluster_descriptors(clusters_num);
-//    auto start = std::chrono::high_resolution_clock::now();
     if(size <= m_k)
     {
-        // trivial case: one cluster per feature
-//        groups.resize(size);
-
         for(unsigned int i = 0; i < size; i++)
         {
-//            groups[i].push_back(i);
             clusters.push_back(*descriptors[begin + i]);
         }
         for (int c = 0; c < size; ++c) {
@@ -942,13 +833,10 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
     }
     else {
         initiateClusters(std::vector<pDescriptor>(descriptors.begin() + begin, descriptors.begin() + end), clusters);
-//        groups.clear();
-//        groups.resize(clusters.size(), tbb::concurrent_vector<unsigned int>());
         bool goon = true;
         bool first_time = true;
         std::vector<int> last_association(size), current_association(size);
         while(goon) {
-//            groups.resize(clusters_num);
             cluster_descriptors.clear();
             cluster_descriptors.resize(clusters_num, concurrent_vector<pDescriptor>());
             tbb::parallel_for(0,size, [&](int i) {
@@ -963,11 +851,8 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                     }
                 }
                 current_association[i] = icluster;
-//                groups[icluster].push_back(i);
                 cluster_descriptors[icluster].push_back(descriptors[begin + i]);
             });
-
-//            auto statrt = std::chrono::high_resolution_clock::now();
 
             tbb::parallel_for(0, clusters_num, [&] (int c) {
                 F::meanValue(cluster_descriptors[c], clusters[c]);
@@ -1007,7 +892,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelDFS(NodeId parent_id
         return;
     }
     std::vector<int> idxes;
-//    idxes.push_back(descriptors.size());
     int node_num = 0;
     task_group g;
     HKmeansIter(descriptors, begin, end, idxes, parent_id);
@@ -1020,153 +904,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelDFS(NodeId parent_id
 
         t_begin = t_end;
     }
-
     g.wait();
-//    for (int current_level = 0; current_level < m_L; ++current_level) {
-////        std::cout << current_level << std::endl;
-//        int expected_nodes = (int)((pow((double)m_k, (double)current_level + 1) - 1)/(m_k - 1)) -
-//                             (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
-//        task_group g;
-//        std::vector<std::vector<int>> current_idxes(expected_nodes, std::vector<int>());
-//        int begin = 0;
-//        int end;
-//        for (int current_node = 0; current_node < expected_nodes; ++current_node) {
-//            end = idxes[current_node];
-//            g.run([this, &descriptors, begin, end, &current_idxes, current_node, node_num]{HKmeansIter(descriptors, begin, end, current_idxes[current_node], node_num);});
-//
-//            begin = end;
-//            node_num++;
-//        }
-//
-//        g.wait();
-//        idxes.clear();
-//        for (int current_node = 0; current_node < expected_nodes; ++current_node) {
-//            for (int i = 0; i < current_idxes[current_node].size(); ++i) {
-//                idxes.push_back(current_idxes[current_node][i]);
-//            }
-//        }
-//    }
-//    std::cout << "finish\n";
-////    std::cout << current_level << std::endl;
-//    if(descriptors.empty()) return;
-//
-//    // features associated to each cluster
-//    std::vector<TDescriptor> clusters;
-//    std::vector<tbb::concurrent_vector<unsigned int> > groups; // groups[i] = [j1, j2, ...]
-//    // j1, j2, ... indices of descriptors associated to cluster i
-//
-//    clusters.reserve(m_k);
-//    groups.reserve(m_k);
-//
-//
-////    auto start = std::chrono::high_resolution_clock::now();
-//    if((int)descriptors.size() <= m_k)
-//    {
-//        // trivial case: one cluster per feature
-//        groups.resize(descriptors.size());
-//
-//        for(unsigned int i = 0; i < descriptors.size(); i++)
-//        {
-//            groups[i].push_back(i);
-//            clusters.push_back(*descriptors[i]);
-//        }
-//    }
-//    else {
-//        initiateClusters(descriptors, clusters);
-////        kmeansIter(descriptors, clusters, groups);
-//
-////        groups.resize(clusters.size());
-//        groups.clear();
-//        groups.resize(clusters.size(), tbb::concurrent_vector<unsigned int>());
-//        bool goon = true;
-//        bool first_time = true;
-//        int descriptors_num = descriptors.size();
-//        int clusters_num = clusters.size();
-//        std::vector<int> last_association(descriptors_num), current_association(descriptors_num);
-//        int num = 0;
-//        unsigned long grain_size = 1;
-//        while(goon) {
-//            num++;
-//            std::vector<concurrent_vector<pDescriptor>> cluster_descriptors(clusters_num);
-//            groups.resize(clusters_num);
-//
-//            tbb::parallel_for(0,descriptors_num, [&](int i) {
-//                double best_dist = F::distance(*descriptors[i], clusters[0]);
-//                unsigned int icluster = 0;
-//
-//                for (unsigned int c = 1; c < clusters.size(); ++c) {
-//                    double dist = F::distance(*descriptors[i], clusters[c]);
-//                    if (dist < best_dist) {
-//                        best_dist = dist;
-//                        icluster = c;
-//                    }
-//                }
-//                current_association[i] = icluster;
-//                groups[icluster].push_back(i);
-//                cluster_descriptors[icluster].push_back(descriptors[i]);
-//            });
-//
-////            auto statrt = std::chrono::high_resolution_clock::now();
-//
-//            tbb::parallel_for(0, clusters_num, [&] (int c) {
-//                F::meanValue(cluster_descriptors[c], clusters[c]);
-//            });
-//
-//
-//            if (!first_time){
-//                goon = false;
-//                for(int i = 0; i < descriptors_num; ++i) {
-//                    if (last_association[i] != current_association[i]) {
-//                        goon = true;
-//                        break;
-//                    }
-//                }
-//            } else {
-//                first_time = false;
-//            }
-//            last_association = current_association;
-//        }
-//
-//    }
-//
-////    auto end = std::chrono::high_resolution_clock::now();
-////    std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << std::endl;
-//
-//    // create nodes
-//    for(unsigned int i = 0; i < clusters.size(); ++i)
-//    {
-//        NodeId id = m_nodes.size();
-//        m_nodes.push_back(Node(id));
-//        m_nodes.back().descriptor = clusters[i];
-//        m_nodes.back().parent = parent_id;
-//        m_nodes[parent_id].children.push_back(id);
-//    }
-//
-////    std::cout << "here\n";
-//    // go on with the next level
-//    if(current_level < m_L)
-//    {
-//        // iterate again with the resulting clusters
-//        const std::vector<NodeId> &children_ids = m_nodes[parent_id].children;
-//        for(unsigned int i = 0; i < clusters.size(); ++i)
-//        {
-//            NodeId id = children_ids[i];
-//
-//            std::vector<pDescriptor> child_features;
-//            child_features.reserve(groups[i].size());
-//
-//            tbb::concurrent_vector<unsigned int>::const_iterator vit;
-//            for(vit = groups[i].begin(); vit != groups[i].end(); ++vit)
-//            {
-//                child_features.push_back(descriptors[*vit]);
-//            }
-//
-//            if(child_features.size() > 1)
-//            {
-//                HKmeansStepParallelBFS(id, child_features, current_level + 1);
-//            }
-//        }
-//    }
 }
 
 template<class TDescriptor, class F>
@@ -1200,126 +938,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
             }
         }
     }
-////    std::cout << current_level << std::endl;
-//    if(descriptors.empty()) return;
-//
-//    // features associated to each cluster
-//    std::vector<TDescriptor> clusters;
-//    std::vector<tbb::concurrent_vector<unsigned int> > groups; // groups[i] = [j1, j2, ...]
-//    // j1, j2, ... indices of descriptors associated to cluster i
-//
-//    clusters.reserve(m_k);
-//    groups.reserve(m_k);
-//
-//
-////    auto start = std::chrono::high_resolution_clock::now();
-//    if((int)descriptors.size() <= m_k)
-//    {
-//        // trivial case: one cluster per feature
-//        groups.resize(descriptors.size());
-//
-//        for(unsigned int i = 0; i < descriptors.size(); i++)
-//        {
-//            groups[i].push_back(i);
-//            clusters.push_back(*descriptors[i]);
-//        }
-//    }
-//    else {
-//        initiateClusters(descriptors, clusters);
-////        kmeansIter(descriptors, clusters, groups);
-//
-////        groups.resize(clusters.size());
-//        groups.clear();
-//        groups.resize(clusters.size(), tbb::concurrent_vector<unsigned int>());
-//        bool goon = true;
-//        bool first_time = true;
-//        int descriptors_num = descriptors.size();
-//        int clusters_num = clusters.size();
-//        std::vector<int> last_association(descriptors_num), current_association(descriptors_num);
-//        int num = 0;
-//        unsigned long grain_size = 1;
-//        while(goon) {
-//            num++;
-//            std::vector<concurrent_vector<pDescriptor>> cluster_descriptors(clusters_num);
-//            groups.resize(clusters_num);
-//
-//            tbb::parallel_for(0,descriptors_num, [&](int i) {
-//                double best_dist = F::distance(*descriptors[i], clusters[0]);
-//                unsigned int icluster = 0;
-//
-//                for (unsigned int c = 1; c < clusters.size(); ++c) {
-//                    double dist = F::distance(*descriptors[i], clusters[c]);
-//                    if (dist < best_dist) {
-//                        best_dist = dist;
-//                        icluster = c;
-//                    }
-//                }
-//                current_association[i] = icluster;
-//                groups[icluster].push_back(i);
-//                cluster_descriptors[icluster].push_back(descriptors[i]);
-//            });
-//
-////            auto statrt = std::chrono::high_resolution_clock::now();
-//
-//            tbb::parallel_for(0, clusters_num, [&] (int c) {
-//                F::meanValue(cluster_descriptors[c], clusters[c]);
-//            });
-//
-//
-//            if (!first_time){
-//                goon = false;
-//                for(int i = 0; i < descriptors_num; ++i) {
-//                    if (last_association[i] != current_association[i]) {
-//                        goon = true;
-//                        break;
-//                    }
-//                }
-//            } else {
-//                first_time = false;
-//            }
-//            last_association = current_association;
-//        }
-//
-//    }
-//
-////    auto end = std::chrono::high_resolution_clock::now();
-////    std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << std::endl;
-//
-//    // create nodes
-//    for(unsigned int i = 0; i < clusters.size(); ++i)
-//    {
-//        NodeId id = m_nodes.size();
-//        m_nodes.push_back(Node(id));
-//        m_nodes.back().descriptor = clusters[i];
-//        m_nodes.back().parent = parent_id;
-//        m_nodes[parent_id].children.push_back(id);
-//    }
-//
-////    std::cout << "here\n";
-//    // go on with the next level
-//    if(current_level < m_L)
-//    {
-//        // iterate again with the resulting clusters
-//        const std::vector<NodeId> &children_ids = m_nodes[parent_id].children;
-//        for(unsigned int i = 0; i < clusters.size(); ++i)
-//        {
-//            NodeId id = children_ids[i];
-//
-//            std::vector<pDescriptor> child_features;
-//            child_features.reserve(groups[i].size());
-//
-//            tbb::concurrent_vector<unsigned int>::const_iterator vit;
-//            for(vit = groups[i].begin(); vit != groups[i].end(); ++vit)
-//            {
-//                child_features.push_back(descriptors[*vit]);
-//            }
-//
-//            if(child_features.size() > 1)
-//            {
-//                HKmeansStepParallelBFS(id, child_features, current_level + 1);
-//            }
-//        }
-//    }
 }
 
 template<class TDescriptor, class F>
