@@ -28,9 +28,9 @@ using namespace tbb;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-void loadFeatures(vector<vector<cv::Mat > > &features);
-void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out);
-void testVocCreation(const vector<vector<cv::Mat > > &features);
+void loadFeatures(vector<vector<uchar > > &features);
+void changeStructure(const cv::Mat &plain, vector<uchar> &out);
+void testVocCreation(const vector<vector<uchar > > &features);
 void testDatabase(const vector<vector<cv::Mat > > &features);
 
 
@@ -54,22 +54,22 @@ int main()
 //  parallel_for(0, 3, [&](int i) {
 //    int a = 2;
 //  });
-  vector<vector<cv::Mat > > features;
+  vector<vector<uchar > > features;
   loadFeatures(features);
-
   for (int i = 0; i < 1; ++i)
     testVocCreation(features);
 
-  wait();
-
-  testDatabase(features);
+    return 0;
+//  wait();
+//
+//  testDatabase(features);
 
   return 0;
 }
 
 // ----------------------------------------------------------------------------
 
-void loadFeatures(vector<vector<cv::Mat > > &features)
+void loadFeatures(vector<vector<uchar > > &features)
 {
   features.clear();
   features.reserve(NIMAGES);
@@ -90,26 +90,35 @@ void loadFeatures(vector<vector<cv::Mat > > &features)
 
     orb->detectAndCompute(image, mask, keypoints, descriptors);
 
-    features.push_back(vector<cv::Mat >());
+    const int k = 3;
+    const int L = 3;
+    const WeightingType weight = TF_IDF;
+    const ScoringType score = L1_NORM;
+    OrbVocabulary voc(k, L, weight, score);
+    vector<vector<cv::Mat>> temp;
+    temp.push_back({descriptors});
+    voc.create(temp);
+    features.push_back(vector<uchar >());
     changeStructure(descriptors, features.back());
   }
 }
 
 // ----------------------------------------------------------------------------
 
-void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out)
+void changeStructure(const cv::Mat &plain, vector<uchar> &out)
 {
-  out.resize(plain.rows);
-
-  for(int i = 0; i < plain.rows; ++i)
-  {
-    out[i] = plain.row(i);
-  }
+    if (plain.isContinuous()) {
+        out.assign(plain.datastart, plain.dataend);
+    } else {
+        for (int i = 0; i < plain.rows; ++i) {
+            out.insert(out.end(), plain.ptr<uchar>(i), plain.ptr<uchar>(i)+plain.cols);
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
 
-void testVocCreation(const vector<vector<cv::Mat > > &features)
+void testVocCreation(const vector<vector<uchar > > &features)
 {
 //       5539799825
 // branching factor and depth levels
@@ -117,33 +126,34 @@ void testVocCreation(const vector<vector<cv::Mat > > &features)
   const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
-
-  OrbVocabulary voc(k, L, weight, score);
-
-//  // save the vocabulary to disk
-  auto statrt = std::chrono::high_resolution_clock::now();
-  voc.create(features);
-    auto end = std::chrono::high_resolution_clock::now();
-  cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
-//  cout << "... done!" << endl;
-
-//  cout << "Vocabulary information: " << endl
-//  << voc << endl << endl;
-
-  // lets do something with this vocabulary
-//  cout << "Matching images against themselves (0 low, 1 high): " << endl;
-  BowVector v1, v2;
-  for(int i = 0; i < NIMAGES; i++)
-  {
-    voc.transform(features[i], v1);
-    for(int j = 0; j < NIMAGES; j++)
-    {
-      voc.transform(features[j], v2);
-
-      double score = voc.score(v1, v2);
-      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
-    }
-  }
+//  VocabularyUCHAR voc(k, L, weight, score);
+//  voc.create(features);
+//  OrbVocabulary voc(k, L, weight, score);
+//
+////  // save the vocabulary to disk
+//  auto statrt = std::chrono::high_resolution_clock::now();
+//  voc.create(features);
+//    auto end = std::chrono::high_resolution_clock::now();
+//  cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+////  cout << "... done!" << endl;
+//
+////  cout << "Vocabulary information: " << endl
+////  << voc << endl << endl;
+//
+//  // lets do something with this vocabulary
+////  cout << "Matching images against themselves (0 low, 1 high): " << endl;
+//  BowVector v1, v2;
+//  for(int i = 0; i < NIMAGES; i++)
+//  {
+//    voc.transform(features[i], v1);
+//    for(int j = 0; j < NIMAGES; j++)
+//    {
+//      voc.transform(features[j], v2);
+//
+//      double score = voc.score(v1, v2);
+//      cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+//    }
+//  }
 
   // save the vocabulary to disk
 //  cout << endl << "Saving vocabulary..." << endl;
