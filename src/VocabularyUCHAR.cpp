@@ -8,6 +8,8 @@
 
 #include "VocabularyUCHAR.h"
 
+#include "ones8bits.h"
+
 using namespace std;
 
 namespace DBoW2 {
@@ -27,21 +29,26 @@ namespace DBoW2 {
             (const std::vector<std::vector<uchar> > &training_features) {
         m_nodes.clear();
         m_words.clear();
+        auto statrt = std::chrono::high_resolution_clock::now();
         build_tree();
-        std::cout << "build tree\n";
-        std::vector<uchar > features;
-        getFeatures(training_features, features);
-        std::cout << "features: " << training_features.size() << std::endl;
-////    // create the tree
-    HKmeansStepParallelBFS(0, features, 1);
+        auto end = std::chrono::high_resolution_clock::now();
+        cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+        std::vector<std::vector<uchar >> features(2);
+        statrt = std::chrono::high_resolution_clock::now();
+        getFeatures(training_features, features[0]);
+        end = std::chrono::high_resolution_clock::now();
+        cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+        features[1].resize(features[0].size());
+        statrt = std::chrono::high_resolution_clock::now();
+        HKmeansStepParallelBFS(0, features, 1);
+        end = std::chrono::high_resolution_clock::now();
+        cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
 //        HKmeansStepParallelDFS(0, features, 0, features.size());
-////    HKmeansStep(0, features, 1);
-////
-////    // create the words
-//        createWords();
-////
-////    // and set the weight of each node of the tree
-//        setNodeWeightsParallel(training_features);
+
+        statrt = std::chrono::high_resolution_clock::now();
+        setNodeWeightsParallel(training_features);
+        end = std::chrono::high_resolution_clock::now();
+        cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
 
     }
 
@@ -89,35 +96,449 @@ namespace DBoW2 {
                 features.push_back(f);
             }
         }
-//        typename std::vector<std::vector<uchar > >::const_iterator vvit;
-//        typename std::vector<uchar >::const_iterator vit;
-//        for(vvit = training_features.begin(); vvit != training_features.end(); ++vvit)
-//        {
-//            features.reserve(features.size() + vvit->size());
-//            for(vit = vvit->begin(); vit != vvit->end(); ++vit)
-//            {
-//                features.push_back(&(*vit));
-//            }
-//        }
+    }
+
+    void VocabularyUCHAR::meanValue(const tbb::concurrent_vector<std::vector<uchar>> &descriptors,
+                   std::vector<uchar> &mean) {
+
+        if(descriptors.empty())
+        {
+            mean.clear();
+            return;
+        }
+        else if(descriptors.size() == 1)
+        {
+            mean.clear();
+            for (int i = 0; i < m_desc_len; ++i) {
+                mean.push_back(descriptors[0][i]);
+            }
+        }
+        else {
+            vector<int> sum(m_desc_len * 8, 0);
+            for (int i = 0; i < descriptors.size(); ++i) {
+                for (int j = 0; j < m_desc_len; ++j) {
+                    if (descriptors[i][j] & (1 << 7)) ++sum[j * 8];
+                    if (descriptors[i][j] & (1 << 6)) ++sum[j * 8 + 1];
+                    if (descriptors[i][j] & (1 << 5)) ++sum[j * 8 + 2];
+                    if (descriptors[i][j] & (1 << 4)) ++sum[j * 8 + 3];
+                    if (descriptors[i][j] & (1 << 3)) ++sum[j * 8 + 4];
+                    if (descriptors[i][j] & (1 << 2)) ++sum[j * 8 + 5];
+                    if (descriptors[i][j] & (1 << 1)) ++sum[j * 8 + 6];
+                    if (descriptors[i][j] & (1)) ++sum[j * 8 + 7];
+                }
+            }
+            mean = vector<uchar>(m_desc_len, 0);
+            const int N2 = (int) (descriptors.size()) / 2 + (descriptors.size()) % 2;
+            int idx = 0;
+            for (size_t i = 0; i < sum.size(); ++i) {
+                if (sum[i] >= N2) {
+                    // set bit
+                    mean[idx] |= 1 << (7 - (i % 8));
+                }
+
+                if (i % 8 == 7) ++idx;
+            }
+        }
+    }
+
+    // should check faster approach
+    double VocabularyUCHAR::distance(const std::vector<uchar> &a, const std::vector<uchar> &b) const {
+        int res = 0;
+        for (int i = 0; i < a.size(); ++i) {
+            res += ones8bits[a[i] ^ b[i]];
+        }
+        return res;
     }
 
     void VocabularyUCHAR::HKmeansStep(NodeId parent_id, const std::vector<uchar> &descriptors,
                      int current_level) {}
 
-    void VocabularyUCHAR::HKmeansStepParallelBFS(NodeId parent_id, std::vector<uchar> &descriptors,
-                                int current_level) {}
+    void VocabularyUCHAR::HKmeansStepParallelBFS(NodeId parent_id, std::vector<std::vector<uchar>> &descriptors,
+                                int current_level) {
+        std::vector<int> idxes;
+        idxes.push_back(descriptors[0].size() / m_desc_len);
+        int node_num = 0;
+        for (int current_level = 0; current_level < m_L; ++current_level) {
+            int expected_nodes = (int)((pow((double)m_k, (double)current_level + 1) - 1)/(m_k - 1)) -
+                                 (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
+            task_group g;
+            std::vector<std::vector<int>> current_idxes(expected_nodes, std::vector<int>());
+            int begin = 0;
+            int end;
+            for (int current_node = 0; current_node < expected_nodes; ++current_node) {
+                end = idxes[current_node];
+                g.run([this, &descriptors, current_level, begin, end, &current_idxes, current_node, node_num]{HKmeansIter(descriptors[current_level & 1], descriptors[!(current_level & 1)], begin, end, current_idxes[current_node], node_num);});
+
+                begin = end;
+                node_num++;
+            }
+            g.wait();
+            idxes.clear();
+            for (int current_node = 0; current_node < expected_nodes; ++current_node) {
+                for (int i = 0; i < current_idxes[current_node].size(); ++i) {
+                    idxes.push_back(current_idxes[current_node][i]);
+                }
+            }
+
+        }
+    }
 
     void VocabularyUCHAR::HKmeansStepParallelDFS(NodeId parent_id, std::vector<uchar> &descriptors,
                                 int begin, int end) {}
 
-    void VocabularyUCHAR::HKmeansIter(std::vector<uchar> &descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {}
+    void VocabularyUCHAR::HKmeansIter(std::vector<uchar> &descriptors, std::vector<uchar> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {
+        int size = end - begin;
+        if(!size) return;
+        // features associated to each cluster
+        std::vector<std::vector<uchar>> clusters;
 
+        clusters.reserve(m_k);
+
+        int clusters_num = m_k;
+        std::vector<concurrent_vector<std::vector<uchar>>> cluster_descriptors(clusters_num);
+
+        if(size <= m_k)
+        {
+            for(unsigned int i = 0; i < size; i++)
+            {
+                std::vector<uchar> new_cluster;
+                for (int j = 0; j < m_desc_len; ++j) {
+                    new_cluster.push_back(descriptors[m_desc_len * begin + i * m_desc_len + j]);
+                }
+                clusters.push_back(new_cluster);
+            }
+            for (int c = 0; c < size; ++c) {
+                m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
+                idxs.push_back(begin + 1);
+                for (int i = 0; i  < clusters[c].size(); ++i) {
+                    new_descriptors[m_desc_len * begin  + i] = descriptors[m_desc_len * begin + i];
+                }
+                begin++;// += clusters[c].size();
+            }
+            return;
+        }
+        else {
+
+            initiateClustersHKpp(std::vector<uchar>(descriptors.begin() + m_desc_len * begin, descriptors.begin() + m_desc_len * end), clusters);
+
+            bool goon = true;
+            bool first_time = true;
+            std::vector<int> last_association(size), current_association(size);
+            while(goon) {
+                cluster_descriptors.clear();
+                cluster_descriptors.resize(clusters_num, concurrent_vector<std::vector<uchar>>());
+                tbb::parallel_for(0,size, [&](int i) {
+                    std::vector<uchar> temp;
+                    for (int j = 0; j < m_desc_len; ++j) {
+                        temp.push_back(descriptors[m_desc_len * begin + i * m_desc_len + j]);
+                    }
+                    double best_dist = distance(temp, clusters[0]);
+                    unsigned int icluster = 0;
+
+                    for (unsigned int c = 1; c < clusters.size(); ++c) {
+                        double dist = distance(temp, clusters[c]);
+                        if (dist < best_dist) {
+                            best_dist = dist;
+                            icluster = c;
+                        }
+                    }
+                    current_association[i] = icluster;
+                    cluster_descriptors[icluster].push_back(temp);
+                });
+                tbb::parallel_for(0, clusters_num, [&] (int c) {
+                    meanValue(cluster_descriptors[c], clusters[c]);
+                });
+                if (!first_time){
+                    goon = false;
+                    for(int i = 0; i < size; ++i) {
+                        if (last_association[i] != current_association[i]) {
+                            goon = true;
+                            break;
+                        }
+                    }
+                } else {
+                    first_time = false;
+                }
+                last_association = current_association;
+            }
+        }
+        for (int c = 0; c < clusters_num; ++c) {
+            m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
+            idxs.push_back(begin + cluster_descriptors[c].size());
+            for (int i = 0; i  < cluster_descriptors[c].size(); ++i) {
+                for (int j = 0; j < m_desc_len; ++j) {
+                    new_descriptors[m_desc_len * begin + m_desc_len * i + j] = cluster_descriptors[c][i][j];
+                }
+            }
+            begin += cluster_descriptors[c].size();
+        }
+    }
+
+    void VocabularyUCHAR::initiateClustersHKpp(
+            const std::vector<uchar> &pfeatures,
+            std::vector<std::vector<uchar>> &clusters) {
+        // Implements kmeans++ seeding algorithm
+        // Algorithm:
+        // 1. Choose one center uniformly at random from among the data points.
+        // 2. For each data point x, compute D(x), the distance between x and the nearest
+        //    center that has already been chosen.
+        // 3. Add one new data point as a center. Each point x is chosen with probability
+        //    proportional to D(x)^2.
+        // 4. Repeat Steps 2 and 3 until k centers have been chosen.
+        // 5. Now that the initial centers have been chosen, proceed using standard k-means
+        //    clustering.
+        clusters.resize(0);
+        clusters.reserve(m_k);
+        std::vector<double> min_dists(pfeatures.size() / m_desc_len, std::numeric_limits<double>::max());
+
+        // 1.
+
+        int ifeature = RandomInt(0, (pfeatures.size() / m_desc_len) -1);
+
+        // create first cluster
+        std::vector<uchar> init_feature;
+        for (int i = 0; i < m_desc_len; ++i) {
+            init_feature.push_back(pfeatures[m_desc_len * ifeature + i]);
+        }
+        clusters.push_back(init_feature);
+
+        // compute the initial distances
+        std::vector<double>::iterator dit;
+        dit = min_dists.begin();
+        for (int i = 0; i < pfeatures.size() / m_desc_len; ++i) {
+            std::vector<uchar> temp;
+            for (int j = 0; j < m_desc_len; ++j) {
+                temp.push_back(m_desc_len * i + j);
+            }
+            min_dists[i] = distance(temp, clusters.back());
+        }
+
+        while((int)clusters.size() < m_k)
+        {
+            // 2.
+            dit = min_dists.begin();
+            for (int i = 0; i < pfeatures.size() / m_desc_len; ++i) {
+                if (min_dists[i] > 0) {
+                    std::vector<uchar> temp;
+                    for (int j = 0; j < m_desc_len; ++j) {
+                        temp.push_back(m_desc_len * i + j);
+                    }
+                    double dist = distance(temp, clusters.back());
+                    if (dist < min_dists[i]) {
+                        min_dists[i] = dist;
+                    }
+                }
+            }
+
+            // 3.
+            double dist_sum = std::accumulate(min_dists.begin(), min_dists.end(), 0.0);
+
+            if(dist_sum > 0)
+            {
+                double cut_d;
+                do
+                {
+                    cut_d = RandomValue<double>(0, dist_sum);
+                } while(cut_d == 0.0);
+
+                double d_up_now = 0;
+                for(dit = min_dists.begin(); dit != min_dists.end(); ++dit)
+                {
+                    d_up_now += *dit;
+                    if(d_up_now >= cut_d) break;
+                }
+
+                if(dit == min_dists.end())
+                    ifeature = (pfeatures.size() / m_desc_len)-1;
+                else
+                    ifeature = dit - min_dists.begin();
+                std::vector<uchar> new_feature;
+                for (int i = 0; i < m_desc_len; ++i) {
+                    new_feature.push_back(m_desc_len * ifeature + i);
+                }
+                clusters.push_back(new_feature);
+
+            } // if dist_sum > 0
+            else
+                break;
+
+        } // while(used_clusters < m_k)
+
+    }
 
     void VocabularyUCHAR::kmeansIter(const std::vector<uchar> &descriptors,
                     std::vector<uchar> &clusters, std::vector<concurrent_vector<unsigned int>> &groups) const {}
 
 
-    void VocabularyUCHAR::setNodeWeightsParallel(const std::vector<std::vector<uchar> > &features) {}
+    void VocabularyUCHAR::setNodeWeightsParallel(const std::vector<std::vector<uchar>> &training_features) {
+        const unsigned int NWords = m_words.size();
+        const unsigned int NDocs = training_features.size();
+
+        if(m_weighting == TF || m_weighting == BINARY)
+        {
+            // idf part must be 1 always
+            for(unsigned int i = 0; i < NWords; i++)
+                m_words[i]->weight = 1;
+        }
+        else if(m_weighting == IDF || m_weighting == TF_IDF)
+        {
+            // IDF and TF-IDF: we calculte the idf path now
+
+            // Note: this actually calculates the idf part of the tf-idf score.
+            // The complete tf-idf score is calculated in ::transform
+
+            std::vector<unsigned int> Ni(NWords, 0);
+            std::vector<bool> counted(NWords, false);
+
+            typename std::vector<std::vector<uchar>>::const_iterator mit;
+            typename std::vector<uchar>::const_iterator fit;
+
+            for (int img_num = 0; img_num < training_features.size(); ++img_num) {
+                fill(counted.begin(), counted.end(), false);
+
+                for (int desc_num = 0; desc_num < training_features[img_num].size() / m_desc_len; ++desc_num) {
+                    WordId word_id;
+                    vector<uchar> temp(training_features[img_num].begin() + m_desc_len * desc_num, training_features[img_num].begin() + m_desc_len * (desc_num + 1));
+                    transform(temp, word_id);
+
+                    if(!counted[word_id])
+                    {
+                        Ni[word_id]++;
+                        counted[word_id] = true;
+                    }
+                }
+            }
+
+            // set ln(N/Ni)
+            for(unsigned int i = 0; i < NWords; i++)
+            {
+                if(Ni[i] > 0)
+                {
+                    m_words[i]->weight = log((double)NDocs / (double)Ni[i]);
+                }// else // This cannot occur if using kmeans++
+            }
+
+        }
+    }
+    void VocabularyUCHAR::transform
+            (const vector<uchar> &feature, WordId &id) const
+    {
+        WordValue weight;
+        transform(feature, id, weight);
+    }
+
+    double VocabularyUCHAR::score(const BowVector &v1, const BowVector &v2) const
+    {
+        return m_scoring_object->score(v1, v2);
+    }
+
+    void VocabularyUCHAR::transform(const std::vector<uchar>& features, BowVector &v) const
+    {
+        v.clear();
+
+        if(features.empty())
+        {
+            return;
+        }
+
+        // normalize
+        LNorm norm;
+        bool must = m_scoring_object->mustNormalize(norm);
+
+//        typename std::vector<TDescriptor>::const_iterator fit;
+
+        if(m_weighting == TF || m_weighting == TF_IDF)
+        {
+            for (int desc_num = 0; desc_num < features.size() / m_desc_len; ++desc_num) {
+
+                WordId id;
+                WordValue w;
+
+                vector<uchar> temp(features.begin() + m_desc_len * desc_num, features.begin() + m_desc_len * (desc_num + 1));
+                transform(temp, id, w);
+
+                if(w > 0) v.addWeight(id, w);
+            }
+
+            if(!v.empty() && !must)
+            {
+                // unnecessary when normalizing
+                const double nd = v.size();
+                for(BowVector::iterator vit = v.begin(); vit != v.end(); vit++)
+                    vit->second /= nd;
+            }
+
+        }
+        else // IDF || BINARY
+        {
+//            for(fit = features.begin(); fit < features.end(); ++fit)
+//            {
+//                WordId id;
+//                WordValue w;
+//                // w is idf if IDF, or 1 if BINARY
+//
+//                transform(*fit, id, w);
+//
+//                // not stopped
+//                if(w > 0) v.addIfNotExist(id, w);
+//
+//            } // if add_features
+        } // if m_weighting == ...
+
+        if(must) v.normalize(norm);
+    }
+
+    void VocabularyUCHAR::transform(const vector<uchar> &feature,
+              WordId &word_id, WordValue &weight, NodeId *nid, int levelsup) const
+    {
+        // propagate the feature down the tree
+        std::vector<NodeId> nodes, nodes2;
+        typename std::vector<NodeId>::const_iterator nit;
+
+        // level at which the node must be stored in nid, if given
+        const int nid_level = m_L - levelsup;
+        if(nid_level <= 0 && nid != NULL) *nid = 0; // root
+
+        NodeId final_id = 0; // root
+        int current_level = 0;
+
+        do
+        {
+            ++current_level;
+            nodes2 = m_nodes[final_id].children;
+            nodes.clear();
+            for (int i = 0; i < nodes2.size(); ++i) {
+                if (m_nodes[nodes2[i]].descriptor.size()) {
+                    nodes.push_back(nodes2[i]);
+                }
+            }
+            if (nodes.empty()) {
+                break;
+            }
+            final_id = nodes[0];
+
+            double best_d = distance(feature, m_nodes[final_id].descriptor);
+            for(nit = nodes.begin() + 1; nit != nodes.end(); ++nit)
+            {
+                NodeId id = *nit;
+
+                double d = distance(feature, m_nodes[id].descriptor);
+                if(d < best_d)
+                {
+                    best_d = d;
+                    final_id = id;
+                }
+            }
+
+            if(nid != NULL && current_level == nid_level)
+                *nid = final_id;
+
+        } while( !m_nodes[final_id].isLeaf() );
+
+        // turn node id into word id
+        word_id = m_nodes[final_id].word_id;
+        weight = m_nodes[final_id].weight;
+    }
 
     void VocabularyUCHAR::createScoringObject()
     {
