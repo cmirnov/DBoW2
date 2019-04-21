@@ -16,6 +16,7 @@
 
 #include "FClass.h"
 
+#include <tbb/concurrent_vector.h>
 namespace DBoW2 {
 
 /// Functions to manipulate BRIEF descriptors

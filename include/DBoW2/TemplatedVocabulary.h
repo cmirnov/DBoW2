@@ -30,6 +30,7 @@
 #include <tbb/mutex.h>
 #include <tbb/tbb_thread.h>
 
+#include "VocabularyUCHAR.h"
 using namespace tbb;
 
 namespace DBoW2 {
@@ -127,6 +128,7 @@ public:
 
     virtual void create2
             (const std::vector<std::vector<TDescriptor> > &training_features);
+
 
     virtual void build_tree();
 
@@ -621,7 +623,7 @@ void TemplatedVocabulary<TDescriptor,F>::create(
 
   // create root
   m_nodes.push_back(Node(0)); // root
-//  std::cout << "before kmeans step\n";
+  std::cout << "before kmeans step\n";
   // create the tree
 //    auto statrt = std::chrono::high_resolution_clock::now();
 //  HKmeansStepParallelBFS(0, features, 1);
@@ -716,43 +718,62 @@ void TemplatedVocabulary<TDescriptor,F>::build_tree() {
         m_nodes[temp_leaf].word_id = i;
     }
 }
-
+using namespace std;
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::create2(
         const std::vector<std::vector<TDescriptor> > &training_features)
 {
     m_nodes.clear();
     m_words.clear();
+    auto statrt = std::chrono::high_resolution_clock::now();
     build_tree();
-//    std::cout << "build\n";
-
-//  tbb::parallel_for(0, training_features.size(), [&](int i) {
-////      min_dists[i] = F::distance(*pfeatures[i], clusters.back());
-//  });
-//    // expected_nodes = Sum_{i=0..L} ( k^i )
-
-//
-////    m_nodes.reserve(expected_nodes); // avoid allocations when creating the tree
-//
-//    m_nodes.resize(expected_nodes);
-//    for (int current_level = 0; current_level < )
+    auto end = std::chrono::high_resolution_clock::now();
+    cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
     std::vector<pDescriptor> features;
+    statrt = std::chrono::high_resolution_clock::now();
     getFeatures(training_features, features);
-//
-//
-//    // create root
-//    m_nodes.push_back(Node(0)); // root
-    std::cout << "means\n";
-//    // create the tree
-//    HKmeansStepParallelBFS(0, features, 1);
-    HKmeansStepParallelDFS(0, features, 0, features.size());
-//    HKmeansStep(0, features, 1);
-//
-//    // create the words
-    createWords();
-//
-//    // and set the weight of each node of the tree
+    end = std::chrono::high_resolution_clock::now();
+    cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+    statrt = std::chrono::high_resolution_clock::now();
+    HKmeansStepParallelBFS(0, features, 1);
+    end = std::chrono::high_resolution_clock::now();
+    cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//        HKmeansStepParallelDFS(0, features, 0, features.size());
+
+    statrt = std::chrono::high_resolution_clock::now();
     setNodeWeightsParallel(training_features);
+    end = std::chrono::high_resolution_clock::now();
+    cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//    build_tree();
+////    std::cout << "build\n";
+//
+////  tbb::parallel_for(0, training_features.size(), [&](int i) {
+//////      min_dists[i] = F::distance(*pfeatures[i], clusters.back());
+////  });
+////    // expected_nodes = Sum_{i=0..L} ( k^i )
+//
+////
+//////    m_nodes.reserve(expected_nodes); // avoid allocations when creating the tree
+////
+////    m_nodes.resize(expected_nodes);
+////    for (int current_level = 0; current_level < )
+//    std::vector<pDescriptor> features;
+//    getFeatures(training_features, features);
+////
+////
+////    // create root
+////    m_nodes.push_back(Node(0)); // root
+//    std::cout << "means\n";
+////    // create the tree
+////    HKmeansStepParallelBFS(0, features, 1);
+//    HKmeansStepParallelDFS(0, features, 0, features.size());
+////    HKmeansStep(0, features, 1);
+////
+////    // create the words
+//    createWords();
+////
+////    // and set the weight of each node of the tree
+//    setNodeWeightsParallel(training_features);
 
 }
 
@@ -861,7 +882,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
 
             if (!first_time){
                 goon = false;
-                for(int i = 0; i < descriptors_num; ++i) {
+                for(int i = 0; i < size; ++i) {
                     if (last_association[i] != current_association[i]) {
                         goon = true;
                         break;
@@ -872,14 +893,14 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
             }
             last_association = current_association;
         }
-    }
-    for (int c = 0; c < clusters_num; ++c) {
-        m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
-        idxs.push_back(begin + cluster_descriptors[c].size());
-        for (int i = 0; i  < cluster_descriptors[c].size(); ++i) {
-            descriptors[begin + i] = cluster_descriptors[c][i];
+        for (int c = 0; c < clusters_num; ++c) {
+            m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
+            idxs.push_back(begin + cluster_descriptors[c].size());
+            for (int i = 0; i  < cluster_descriptors[c].size(); ++i) {
+                descriptors[begin + i] = cluster_descriptors[c][i];
+            }
+            begin += cluster_descriptors[c].size();
         }
-        begin += cluster_descriptors[c].size();
     }
 }
 
@@ -916,7 +937,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
     idxes.push_back(descriptors.size());
     int node_num = 0;
     for (int current_level = 0; current_level < m_L; ++current_level) {
-//        std::cout << current_level << std::endl;
         int expected_nodes = (int)((pow((double)m_k, (double)current_level + 1) - 1)/(m_k - 1)) -
                                              (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
         task_group g;
@@ -927,10 +947,10 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
             end = idxes[current_node];
             g.run([this, &descriptors, begin, end, &current_idxes, current_node, node_num]{HKmeansIter(descriptors, begin, end, current_idxes[current_node], node_num);});
 
+            g.wait();
             begin = end;
             node_num++;
         }
-        g.wait();
         idxes.clear();
         for (int current_node = 0; current_node < expected_nodes; ++current_node) {
             for (int i = 0; i < current_idxes[current_node].size(); ++i) {
@@ -1101,6 +1121,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
           }
 
           kmeansMutex.lock();
+          std::cout << "mean\n";
           F::meanValue(cluster_descriptors, clusters[c]);
           kmeansMutex.unlock();
         }
