@@ -22,12 +22,12 @@ elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 set(HDRS
-  include/DBoW2/BowVector.h           include/DBoW2/FBrief.h
+  include/DBoW2/BowVector.h           include/DBoW2/FBrief.h    include/DBoW2/VocabularyUCHAR.h include/DBoW2/ones8bits.h
   include/DBoW2/QueryResults.h        include/DBoW2/TemplatedDatabase.h   include/DBoW2/FORB.h
   include/DBoW2/DBoW2.h               include/DBoW2/FClass.h              include/DBoW2/FeatureVector.h
   include/DBoW2/ScoringObject.h       include/DBoW2/TemplatedVocabulary.h)
 set(SRCS 
-  src/BowVector.cpp     src/FBrief.cpp        src/FORB.cpp
+  src/BowVector.cpp     src/FBrief.cpp        src/FORB.cpp  src/VocabularyUCHAR.cpp
   src/FeatureVector.cpp src/QueryResults.cpp  src/ScoringObject.cpp)
 
 set(DEPENDENCY_DIR ${CMAKE_CURRENT_BINARY_DIR}/dependencies)
@@ -39,7 +39,7 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 if(BUILD_DBoW2)
   set(LIB_SHARED "SHARED")
   if(WIN32)
-    set(LIB_SHARED "STATIC")
+    set(LIB_SHARED "STATIC" include/DBoW2/ones8bits.h)
   endif(WIN32)
   add_library(${PROJECT_NAME} ${LIB_SHARED} ${SRCS})
   include_directories(include/DBoW2/)
