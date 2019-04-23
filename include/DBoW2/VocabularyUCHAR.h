@@ -44,7 +44,7 @@ namespace DBoW2 {
          * @param weighting weighting type
          * @param scoring scoring type
          */
-        VocabularyUCHAR(int k = 10, int L = 5,
+        VocabularyUCHAR(int k = 10, int L = 5, int grainsize = 1,
                             WeightingType weighting = TF_IDF, ScoringType scoring = L1_NORM);
 
         /**
@@ -220,6 +220,7 @@ namespace DBoW2 {
 
         /// Descriptor length
         int m_desc_len = 32;
+        int m_grainsize;
 
         /// Words of the vocabulary (tree leaves)
         /// this condition holds: m_words[wid]->word_id == wid
