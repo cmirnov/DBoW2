@@ -21,6 +21,9 @@
 
 #include <iomanip>
 #include <chrono>
+#include <vector>
+
+//#include "VocabularyUCHAR.h"
 
 using namespace DBoW2;
 using namespace std;
@@ -28,9 +31,12 @@ using namespace tbb;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-void loadFeatures(vector<vector<uchar > > &features);
-void changeStructure(const cv::Mat &plain, vector<uchar> &out);
-void testVocCreation(const vector<vector<uchar > > &features);
+void loadFeaturesUCHAR(vector<vector<uchar > > &features);
+void loadFeatures(vector<vector<cv::Mat > > &features);
+void changeStructureUCHAR(const cv::Mat &plain, vector<uchar> &out);
+void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out);
+void testVocCreationUCHAR(const vector<vector<uchar > > &features, int grainsize);
+void testVocCreation(const vector<vector<cv::Mat > > &features);
 void testDatabase(const vector<vector<cv::Mat > > &features);
 
 
@@ -47,6 +53,7 @@ void wait()
   getchar();
 }
 
+vector<vector<long long>> res;
 // ----------------------------------------------------------------------------
 
 int main()
@@ -54,11 +61,34 @@ int main()
 //  parallel_for(0, 3, [&](int i) {
 //    int a = 2;
 //  });
-  vector<vector<uchar > > features;
+//  vector<vector<uchar > > features;
+    res.resize(100);
+    vector<vector<cv::Mat > > features;
   loadFeatures(features);
-  for (int i = 0; i < 1; ++i)
-    testVocCreation(features);
-
+  cout << "here\n";
+//  for (int grainsize = 1; grainsize <= 100; grainsize += 5) {
+//      cout << grainsize << endl;
+      for (int i = 0; i < 500; ++i) {
+          testVocCreation(features);
+      }
+//  }
+//  long long mm = 1e16;
+//      int idx = -1;
+//  for (int i = 0; i < 100; i++) {
+//      if (res[i].size() == 0) {
+//          continue;
+//      }
+//      long long avg = 0;
+//      for (int j = 0; j < res[i].size(); ++j) {
+//          avg += res[i][j];
+//      }
+//      cout << avg / res[i].size() << endl;
+//      if (mm > avg / res[i].size()) {
+//          mm = avg / res[i].size();
+//          idx = i;
+//      }
+//  }
+//  cout << endl << endl << idx << " " << mm << endl;
     return 0;
 //  wait();
 //
@@ -69,7 +99,7 @@ int main()
 
 // ----------------------------------------------------------------------------
 
-void loadFeatures(vector<vector<uchar > > &features)
+void loadFeaturesUCHAR(vector<vector<uchar > > &features)
 {
   features.clear();
   features.reserve(NIMAGES);
@@ -95,17 +125,42 @@ void loadFeatures(vector<vector<uchar > > &features)
     const WeightingType weight = TF_IDF;
     const ScoringType score = L1_NORM;
     OrbVocabulary voc(k, L, weight, score);
-    vector<vector<cv::Mat>> temp;
-    temp.push_back({descriptors});
-    voc.create(temp);
+//    vector<vector<cv::Mat>> temp;
+//    temp.push_back({descriptors});
+//    voc.create(temp);
     features.push_back(vector<uchar >());
-    changeStructure(descriptors, features.back());
+    changeStructureUCHAR(descriptors, features.back());
   }
 }
 
+void loadFeatures(vector<vector<cv::Mat > > &features)
+{
+    features.clear();
+    features.reserve(NIMAGES);
+
+    cv::Ptr<cv::ORB> orb = cv::ORB::create();
+
+    cout << "Extracting ORB features..." << endl;
+    for(int i = 0; i < NIMAGES; ++i)
+    {
+        stringstream ss;
+
+        ss << "/home/kirill/Desktop/UNI/visual-similarity-metrics/data/KITTi/dataset/sequences/00/image_0/" << setfill('0') << setw(6) << i << ".png";
+
+        cv::Mat image = cv::imread(ss.str(), 0);
+        cv::Mat mask;
+        vector<cv::KeyPoint> keypoints;
+        cv::Mat descriptors;
+
+        orb->detectAndCompute(image, mask, keypoints, descriptors);
+
+        features.push_back(vector<cv::Mat >());
+        changeStructure(descriptors, features.back());
+    }
+}
 // ----------------------------------------------------------------------------
 
-void changeStructure(const cv::Mat &plain, vector<uchar> &out)
+void changeStructureUCHAR(const cv::Mat &plain, vector<uchar> &out)
 {
     if (plain.isContinuous()) {
         out.assign(plain.datastart, plain.dataend);
@@ -116,9 +171,19 @@ void changeStructure(const cv::Mat &plain, vector<uchar> &out)
     }
 }
 
+void changeStructure(const cv::Mat &plain, vector<cv::Mat> &out)
+{
+    out.resize(plain.rows);
+
+    for(int i = 0; i < plain.rows; ++i)
+    {
+        out[i] = plain.row(i);
+    }
+}
+
 // ----------------------------------------------------------------------------
 
-void testVocCreation(const vector<vector<uchar > > &features)
+void testVocCreationUCHAR(const vector<vector<uchar > > &features, int grainsize)
 {
 //       5539799825
 // branching factor and depth levels
@@ -126,14 +191,15 @@ void testVocCreation(const vector<vector<uchar > > &features)
   const int L = 3;
   const WeightingType weight = TF_IDF;
   const ScoringType score = L1_NORM;
-//  VocabularyUCHAR voc(k, L, weight, score);
-//  voc.create(features);
-//  OrbVocabulary voc(k, L, weight, score);
-//
-////  // save the vocabulary to disk
+//  VocabularyUCHAR voc(k, L, grainsize, weight, score);
+////  voc.create(features);
+////  OrbVocabular/y voc(k, L, weight, score);
+////
+//////  // save the vocabulary to disk
 //  auto statrt = std::chrono::high_resolution_clock::now();
 //  voc.create(features);
 //    auto end = std::chrono::high_resolution_clock::now();
+////    res[grainsize - 1].push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count());
 //  cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
 ////  cout << "... done!" << endl;
 //
@@ -143,10 +209,10 @@ void testVocCreation(const vector<vector<uchar > > &features)
 //  // lets do something with this vocabulary
 ////  cout << "Matching images against themselves (0 low, 1 high): " << endl;
 //  BowVector v1, v2;
-//  for(int i = 0; i < NIMAGES; i++)
+//  for(int i = 0; i < 5; i++)
 //  {
 //    voc.transform(features[i], v1);
-//    for(int j = 0; j < NIMAGES; j++)
+//    for(int j = 0; j < 5; j++)
 //    {
 //      voc.transform(features[j], v2);
 //
@@ -163,6 +229,47 @@ void testVocCreation(const vector<vector<uchar > > &features)
 
 // ----------------------------------------------------------------------------
 
+void testVocCreation(const vector<vector<cv::Mat > > &features)
+{
+//       5539799825
+// branching factor and depth levels
+    const int k = 9;
+    const int L = 3;
+    const WeightingType weight = TF_IDF;
+    const ScoringType score = L1_NORM;
+
+    OrbVocabulary voc(k, L, weight, score);
+
+//  // save the vocabulary to disk
+    auto statrt = std::chrono::high_resolution_clock::now();
+    voc.create2(features);
+    auto end = std::chrono::high_resolution_clock::now();
+    cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << endl;
+//  cout << "... done!" << endl;
+
+//  cout << "Vocabulary information: " << endl
+//  << voc << endl << endl;
+
+    // lets do something with this vocabulary
+//  cout << "Matching images against themselves (0 low, 1 high): " << endl;
+//    BowVector v1, v2;
+//    for(int i = 0; i < NIMAGES; i++)
+//    {
+//        voc.transform(features[i], v1);
+//        for(int j = 0; j < NIMAGES; j++)
+//        {
+//            voc.transform(features[j], v2);
+//
+//            double score = voc.score(v1, v2);
+//            cout << "Image " << i << " vs Image " << j << ": " << score << endl;
+//        }
+//    }
+
+    // save the vocabulary to disk
+//  cout << endl << "Saving vocabulary..." << endl;
+//  voc.save("small_voc.yml.gz");
+//  cout << "Done" << endl;
+}
 void testDatabase(const vector<vector<cv::Mat > > &features)
 {
   cout << "Creating a small database..." << endl;

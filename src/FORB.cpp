@@ -6,7 +6,7 @@
  * License: see the LICENSE.txt file
  *
  */
- 
+#include <iostream>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -18,7 +18,7 @@
 
 #include <tbb/parallel_reduce.h>
 #include <tbb/blocked_range.h>
-
+#include <tbb/concurrent_vector.h>
 using namespace std;
 
 namespace DBoW2 {
@@ -155,15 +155,22 @@ void FORB::meanValue(const tbb::concurrent_vector<FORB::pDescriptor> &descriptor
 {
   if(descriptors.empty())
   {
+//      cout << "empty\n";
+//      cout << mean << endl;
+//      cout << mean.rows << " " << mean.cols << endl;
     mean.release();
+//        mean = cv::Mat();
+//        cout << "all good\n";
     return;
   }
   else if(descriptors.size() == 1)
   {
+//      cout << "one\n";
     mean = descriptors[0]->clone();
   }
   else
   {
+//      cout << "many\n";
       vector<const unsigned char*> descriptors2(descriptors.size());
 //        vector<int> a;
 //        unsigned char* descriptors2[descriptors.size()];
@@ -249,7 +256,7 @@ double FORB::distance(const FORB::TDescriptor &a,
   // Bit count function got from:
   // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan
   // This implementation assumes that a.cols (CV_8U) % sizeof(uint64_t) == 0
-  
+//  std::cout << a << std::endl << b << std::endl << std::endl;
   const uint64_t *pa, *pb;
   pa = a.ptr<uint64_t>(); // a & b are actually CV_8U
   pb = b.ptr<uint64_t>(); 
