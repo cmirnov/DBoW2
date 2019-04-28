@@ -130,8 +130,7 @@ public:
              int k, int L, WeightingType weighting, ScoringType scoring);
 
     virtual void create2
-            (const std::vector<std::vector<TDescriptor> > &training_features);
-
+            (const std::vector<std::vector<TDescriptor> > &training_features, int grainsize);
 
     virtual void build_tree();
 
@@ -452,8 +451,10 @@ protected:
   
   /// Depth levels 
   int m_L;
-  
-  /// Weighting method
+
+    int m_grainsize;
+
+    /// Weighting method
   WeightingType m_weighting;
   
   /// Scoring method
@@ -610,10 +611,6 @@ void TemplatedVocabulary<TDescriptor,F>::create(
 {
   m_nodes.clear();
   m_words.clear();
-//  tbb::parallel_for(0, training_features.size(), [&](int i) {
-////      min_dists[i] = F::distance(*pfeatures[i], clusters.back());
-//  });
-  // expected_nodes = Sum_{i=0..L} ( k^i )
 	int expected_nodes =
 		(int)((pow((double)m_k, (double)m_L + 1) - 1)/(m_k - 1));
 
@@ -626,15 +623,8 @@ void TemplatedVocabulary<TDescriptor,F>::create(
 
   // create root
   m_nodes.push_back(Node(0)); // root
-  std::cout << "before kmeans step\n";
   // create the tree
-//    auto statrt = std::chrono::high_resolution_clock::now();
-//  HKmeansStepParallelBFS(0, features, 1);
   HKmeansStep(0, features, 1);
-//    auto end = std::chrono::high_resolution_clock::now();
-//    std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << std::endl;
-//    std::cout << "\n\n----\n\n";
-//    std::cout << "after kmeans step\n";
 
   // create the words
   createWords();
@@ -700,9 +690,6 @@ void TemplatedVocabulary<TDescriptor,F>::build_tree() {
     q.push(root);
     int child_id = 1;
     for (size_t i = 0; i  < expected_no_leaves; ++i) {
-//        std::cout << q.size() << std::endl;
-//        assert (q.empty());
-//        assert (child_id > expected_nodes);
         NodeId id = q.front();
         q.pop();
         for (int j = 0; j < m_k; ++j) {
@@ -725,16 +712,33 @@ void TemplatedVocabulary<TDescriptor,F>::build_tree() {
 using namespace std;
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::create2(
-        const std::vector<std::vector<TDescriptor> > &training_features)
+        const std::vector<std::vector<TDescriptor> > &training_features, int grainsize)
 {
+    m_grainsize = grainsize;
     m_nodes.clear();
     m_words.clear();
     build_tree();
     std::vector<pDescriptor> features;
+    cout << "1\n";
     getFeatures(training_features, features);
+    cout << "2\n";
     HKmeansStepParallelBFS(0, features, 1);
+    cout << "3\n";
 //        HKmeansStepParallelDFS(0, features, 0, features.size());
     setNodeWeightsParallel(training_features);
+//    cout << "4\n";
+    for (int i = 1; i < m_nodes.size(); ++i) {
+//            cout << "5\n";
+            const cv::Mat &d2 = m_nodes[i].descriptor;
+//            cout << "6\n";
+//            cout << d2.cols << " " << d2.rows << endl;
+            vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
+//            cout << "7\n";
+            for (int j = 0; j < temp2.size(); ++j) {
+                cout << (int)temp2[j] << " ";
+            }
+            cout << endl;
+    }
 }
 
 template<class TDescriptor, class F>
@@ -787,7 +791,20 @@ void TemplatedVocabulary<TDescriptor, F>::kmeansIter
 
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {
+    if (node_num > 2) {
+        return;
+    }
+//    for (int i = 0; i < descriptors.size(); ++i) {
+//        const cv::Mat &d2 = *descriptors[i];
+//        vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
+//        for (int j = 0; j < 32; ++j) {
+//            cout << (int)temp2[j] << " ";
+//        }
+//        cout << endl;
+//    }
+//    throw 1;
     int size = end - begin;
+//    cout << "desc size " << descriptors.size() << endl;
     if(!size) return;
     // features associated to each cluster
     std::vector<TDescriptor> clusters;
@@ -817,16 +834,29 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
         int grainsize =  85;
         initiateClusters(std::vector<pDescriptor>(descriptors.begin() + begin, descriptors.begin() + end), clusters);
         clusters_num = clusters.size();
+        cout << endl;
+        cout << "Im working but changed\n";
+
+//        throw 1;
         bool goon = true;
         bool first_time = true;
         std::vector<int> last_association(size), current_association(size);
+        int nn = 0;
         while(goon) {
+            nn++;
+            for (int i = 0; i < clusters.size(); ++i) {
+                const cv::Mat &d2 = clusters[i];
+                vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
+                for (int j = 0; j < 32; ++j) {
+                    cout << (int)temp2[j] << " ";
+                }
+                cout << endl;
+            }
+            cout << endl;
             current_association.clear();
             current_association.resize(size);
-            cluster_descriptors.clear();
-            cluster_descriptors.resize(clusters_num, concurrent_vector<pDescriptor>());
 
-            auto sums = tbb::parallel_reduce(tbb::blocked_range<int>(0, size, grainsize),
+            auto sums = tbb::parallel_reduce(tbb::blocked_range<int>(0, size, 73),
                                              vector<vector<int>>(clusters.size(), vector<int>(32 * 8 + 1, 0)),
                                              [this, &clusters, &descriptors, &current_association, begin](
                                                      blocked_range<int> r, vector<vector<int>> sums) {
@@ -844,7 +874,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                                                             }
                                                      }
                                                      current_association[i] = icluster;
-                                                     sums[icluster][32 * 8]++;
+                                                     sums[icluster].back()++;
                                                      const cv::Mat &d = *descriptors[begin + i];
                                                      const unsigned char *p = d.ptr<unsigned char>();
 
@@ -865,18 +895,33 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                                              [this, clusters_num](vector<vector<int>> a,
                                                                   vector<vector<int>> b) -> vector<vector<int>> {
                                                  for (int i = 0; i < clusters_num; ++i) {
-                                                     for (int j = 0; j < 8 * 32 + 1; ++j) {
+                                                     for (int j = 0; j < a[i].size(); ++j) {
                                                          a[i][j] += b[i][j];
                                                      }
                                                  }
                                                  return a;
                                              }
             );
+
+//            cout << "sums size " << sums.size() << endl;
+//            for (int i = 0; i < sums.size(); ++i) {
+//                for (int j = 0; j < sums[i].size(); ++j) {
+//                    cout << sums[i][j] << " ";
+//                }
+//                cout << endl << endl;
+//            }
+//            cout << endl;
+//            cout << "association\n";
+//            for (int i = 0; i < current_association.size(); ++i) {
+//                cout << current_association[i] << " ";
+//            }
+//            cout << endl;
             tbb::parallel_for(0, clusters_num, [&](int c) {
 //            for (int c = 0; c < clusters_num; ++c) {
-                if (sums[c][32 * 8] == 0) {
+                if (sums[c].back() == 0) {
                     clusters[c].release();
-                } else if (sums[c][32 * 8] == 1) {
+                } else if (sums[c].back() == 1) {
+                    cout << "one\n";
                     int idx = -1;
                     for (int i = 0; i < current_association.size(); ++i) {
                         if (current_association[i] == c) {
@@ -888,7 +933,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                 } else {
                     clusters[c] = cv::Mat::zeros(1, 32, CV_8U);//vector<uchar>(32, 0);
                     unsigned char *p = clusters[c].template ptr<unsigned char>();
-                    int cluster_size = sums[c][32 * 8];
+                    int cluster_size = sums[c].back();
                     const int N2 = (int) cluster_size / 2 + cluster_size % 2;
                     for (size_t i = 0; i < sums[c].size() - 1; ++i) {
                         if (sums[c][i] >= N2) {
@@ -915,12 +960,26 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                 first_time = false;
             }
             last_association = current_association;
+            if (nn == 3) {
+                throw 1;
+            }
         }
+        cout << "norm";
+        throw 1;
         cluster_descriptors.clear();
         cluster_descriptors.resize(clusters_num, concurrent_vector<pDescriptor>());
+
+        vector<int> ttt(clusters_num, 0);
         for (int i = 0; i < last_association.size(); ++i) {
-            cluster_descriptors[current_association[i]].push_back(descriptors[begin + i]);
+            ttt[last_association[i]]++;
+            cout << last_association[i] << " ";
+            cluster_descriptors[last_association[i]].push_back(descriptors[begin + i]);
         }
+        cout << endl;
+        for (auto x : ttt) {
+            cout << x << endl;
+        }
+        throw 1;
         for (int c = 0; c < clusters_num; ++c) {
             m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
             idxs.push_back(begin + cluster_descriptors[c].size());
@@ -929,9 +988,12 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
             }
             begin += cluster_descriptors[c].size();
         }
-        for (int c = clusters_num; c < m_k; ++ c){
+        for (int c = clusters_num; c < m_k; ++c){
             idxs.push_back(idxs.back());
         }
+    }
+    if (node_num == 2) {
+        throw 1;
     }
 }
 
@@ -967,44 +1029,21 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
     std::vector<int> idxes;
     idxes.push_back(descriptors.size());
     int node_num = 0;
-    int tt = 0;
     for (int current_level = 0; current_level < m_L; ++current_level) {
         int expected_nodes = (int)((pow((double)m_k, (double)current_level + 1) - 1)/(m_k - 1)) -
                                              (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
 
         std::vector<std::vector<int>> current_idxes(expected_nodes, std::vector<int>());
 
-//        cout << endl;
-//        for (int current_node = 0; current_node < expected_nodes; ++current_node) {
-//            tt++;
-//            end = idxes[current_node];
-//            g.run([this, &descriptors, begin, end, &current_idxes, current_node, node_num]{HKmeansIter(descriptors, begin, end, current_idxes[current_node], node_num);});
-//
-//            g.wait();
-//            begin = end;
-//            node_num++;
-//        }
         parallel_for(0, expected_nodes, [this, &idxes, &descriptors, node_num, current_level, &current_idxes](int current_node) {
             int begin = current_node > 0 ? idxes[current_node - 1] : 0;
             int end = idxes[current_node];
             int temp_node_num = node_num + current_node;
-//            for (int current_node = 0; current_node < expected_nodes; ++current_node) {
             HKmeansIter(descriptors, begin, end,
                         current_idxes[current_node], temp_node_num);
-
-//                end = idxes[current_node];
-//                g.run([this, &descriptors, current_level, begin, end, &current_idxes, current_node, node_num] {
-//                    HKmeansIter(descriptors[current_level & 1], descriptors[!(current_level & 1)], begin, end,
-//                                current_idxes[current_node], node_num);
-//                });
-//
-//
-//                begin = end;
-//                node_num++;
-//            }
-//            g.wait();
         });
         node_num += expected_nodes;
+//        throw 1;
         idxes.clear();
         for (int current_node = 0; current_node < expected_nodes; ++current_node) {
             for (int i = 0; i < current_idxes[current_node].size(); ++i) {
@@ -1072,11 +1111,11 @@ void TemplatedVocabulary<TDescriptor,F>::getFeatures(
   std::vector<pDescriptor> &features) const
 {
   features.resize(0);
-  
   typename std::vector<std::vector<TDescriptor> >::const_iterator vvit;
   typename std::vector<TDescriptor>::const_iterator vit;
   for(vvit = training_features.begin(); vvit != training_features.end(); ++vvit)
   {
+//      cout << "vvit size:  " << vvit->size() << endl;
     features.reserve(features.size() + vvit->size());
     for(vit = vvit->begin(); vit != vvit->end(); ++vit)
     {
@@ -1339,6 +1378,8 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 
         if(dist_sum > 0)
         {
+            cout.precision(17);
+            cout << ":dist sum " << dist_sum << endl;
             double cut_d;
             do
             {
@@ -1358,7 +1399,7 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
                 ifeature = dit - min_dists.begin();
 
             clusters.push_back(*pfeatures[ifeature]);
-
+            cout << "ifeature " << ifeature << endl;
         } // if dist_sum > 0
         else
             break;
