@@ -45,7 +45,7 @@ namespace DBoW2 {
          * @param scoring scoring type
          */
         VocabularyUCHAR(int k = 10, int L = 5, int grainsize = 1,
-                            WeightingType weighting = TF_IDF, ScoringType scoring = L1_NORM);
+                            WeightingType weighting = TF_IDF, ScoringType scoring = L1_NORM, int desc_len = 32);
 
         /**
          * Destructor
@@ -59,21 +59,21 @@ namespace DBoW2 {
          * @param training_features
          */
         void create
-                (const std::vector<std::vector<uchar> > &training_features);
+                (const std::vector<std::vector<unsigned char> > &training_features);
 
         void build_tree();
 
-        double distance(const std::vector<uchar> &a, const std::vector<uchar> &b) const;
+        double distance(const std::vector<unsigned char> &a, const std::vector<unsigned char> &b) const;
 
-        void meanValue(const tbb::concurrent_vector<std::vector<uchar>> &descriptors,
-                       std::vector<uchar> &mean);
+        void meanValue(const tbb::concurrent_vector<std::vector<unsigned char>> &descriptors,
+                       std::vector<unsigned char> &mean);
 
         /**
          * Transforms a set of descriptores into a bow vector
          * @param features
          * @param v (out) bow vector of weighted words
          */
-        void transform(const std::vector<uchar>& features, BowVector &v)
+        void transform(const std::vector<unsigned char>& features, BowVector &v)
         const;
 
         /**
@@ -83,11 +83,11 @@ namespace DBoW2 {
          * @param fv (out) feature vector of nodes and feature indexes
          * @param levelsup levels to go up the vocabulary tree to get the node index
          */
-        void transform(const std::vector<uchar>& features,
+        void transform(const std::vector<unsigned char>& features,
                        WordId &id, WordValue &weight, NodeId* nid = NULL, int levelsup = 0) const;
 
 
-        void transform(const std::vector<uchar> &feature, WordId &id) const;
+        void transform(const std::vector<unsigned char> &feature, WordId &id) const;
 
         double score(const BowVector &a, const BowVector &b) const;
 
@@ -106,7 +106,7 @@ namespace DBoW2 {
             /// Parent node (undefined in case of root)
             NodeId parent;
             /// Node descriptor
-            std::vector<uchar> descriptor;
+            std::vector<unsigned char> descriptor;
 
             /// Word id if the node is a word
             WordId word_id;
@@ -142,8 +142,8 @@ namespace DBoW2 {
          * @param features (out) pointers to the training features
          */
         void getFeatures(
-                const std::vector<std::vector<uchar> > &training_features,
-                std::vector<uchar> &features) const;
+                const std::vector<std::vector<unsigned char> > &training_features,
+                std::vector<unsigned char> &features) const;
 
         /**
          * Creates a level in the tree, under the parent, by running kmeans with
@@ -152,29 +152,29 @@ namespace DBoW2 {
          * @param descriptors descriptors to run the kmeans on
          * @param current_level current level in the tree
          */
-        void HKmeansStep(NodeId parent_id, const std::vector<uchar> &descriptors,
+        void HKmeansStep(NodeId parent_id, const std::vector<unsigned char> &descriptors,
                          int current_level);
 
-        void HKmeansStepParallelBFS(NodeId parent_id, std::vector<std::vector<uchar>> &descriptors,
+        void HKmeansStepParallelBFS(NodeId parent_id, std::vector<std::vector<unsigned char>> &descriptors,
                                     int current_level);
-        void HKmeansStepParallelDFS(NodeId parent_id, std::vector<uchar> &descriptors,
+        void HKmeansStepParallelDFS(NodeId parent_id, std::vector<unsigned char> &descriptors,
                                     int begin, int end);
-        void HKmeansIter(std::vector<uchar> &descriptors, std::vector<uchar> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num);
+        void HKmeansIter(std::vector<unsigned char> &descriptors, std::vector<unsigned char> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num);
 
 
-        void kmeansIter(const std::vector<uchar> &descriptors,
-                        std::vector<uchar> &clusters, std::vector<concurrent_vector<unsigned int>> &groups) const;
+        void kmeansIter(const std::vector<unsigned char> &descriptors,
+                        std::vector<unsigned char> &clusters, std::vector<concurrent_vector<unsigned int>> &groups) const;
 
 
-        void setNodeWeightsParallel(const std::vector<std::vector<uchar>> &training_features);
+        void setNodeWeightsParallel(const std::vector<std::vector<unsigned char>> &training_features);
 
         /**
          * Creates k clusters from the given descriptors with some seeding algorithm.
          * @note In this class, kmeans++ is used, but this function should be
          *   overriden by inherited classes.
          */
-        void initiateClustersHKpp(const std::vector<uchar> &descriptors,
-                                      std::vector<std::vector<uchar>> &clusters);
+        void initiateClustersHKpp(const std::vector<unsigned char> &descriptors,
+                                      std::vector<std::vector<unsigned char>> &clusters);
 
         /**
          * Returns a random number in the range [min..max]
