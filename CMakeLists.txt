@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(DBoW2)
+project(DBoW2 LANGUAGES CUDA CXX)
 include(ExternalProject)
 
 option(BUILD_DBoW2   "Build DBoW2"            ON)
@@ -28,7 +28,7 @@ set(HDRS
   include/DBoW2/ScoringObject.h       include/DBoW2/TemplatedVocabulary.h)
 set(SRCS 
   src/BowVector.cpp     src/FBrief.cpp        src/FORB.cpp  src/VocabularyUCHAR.cpp
-  src/FeatureVector.cpp src/QueryResults.cpp  src/ScoringObject.cpp)
+  src/FeatureVector.cpp src/QueryResults.cpp  src/ScoringObject.cpp include/DBoW2/VocabularyCharGPU.h src/VocabularyCharGPU.cu)
 
 set(DEPENDENCY_DIR ${CMAKE_CURRENT_BINARY_DIR}/dependencies)
 set(DEPENDENCY_INSTALL_DIR ${DEPENDENCY_DIR}/install)
