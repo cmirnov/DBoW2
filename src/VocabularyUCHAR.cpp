@@ -35,14 +35,14 @@ namespace DBoW2 {
         features[1].resize(features[0].size());
         HKmeansStepParallelBFS(0, features, 1);
         setNodeWeightsParallel(training_features);
-        int expected_nodes =
-                (int)((pow((double)m_k, (double)m_L + 1) - 1)/(m_k - 1));
-        for (int i = 0; i < expected_nodes; ++i) {
-            for (int j = 0; j < m_nodes[i].descriptor.size(); ++j) {
-                cout << (int)m_nodes[i].descriptor[j] << " ";
-            }
-            cout << endl;
-        }
+//        int expected_nodes =
+//                (int)((pow((double)m_k, (double)m_L + 1) - 1)/(m_k - 1));
+//        for (int i = 0; i < expected_nodes; ++i) {
+//            for (int j = 0; j < m_nodes[i].descriptor.size(); ++j) {
+//                cout << (int)m_nodes[i].descriptor[j] << " ";
+//            }
+//            cout << endl;
+//        }
     }
 
     void VocabularyUCHAR::build_tree() {
@@ -157,18 +157,18 @@ namespace DBoW2 {
             int expected_nodes = (int)((pow((double)m_k, (double)current_level + 1) - 1)/(m_k - 1)) -
                                  (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
             std::vector<std::vector<int>> current_idxes(expected_nodes, std::vector<int>());
-//            for (int current_node = 0; current_node < expected_nodes; ++current_node) {
+            for (int current_node = 0; current_node < expected_nodes; ++current_node) {
 //                    cout << current_level << " " << (current_level & 1) << " " << (!(current_level & 1)) << endl;
-                parallel_for(0, expected_nodes,
-                             [this, &idxes, &descriptors, node_num, current_level, &current_idxes](int current_node) {
+//                parallel_for(0, expected_nodes,
+//                             [this, &idxes, &descriptors, node_num, current_level, &current_idxes](int current_node) {
                                  int begin = current_node > 0 ? idxes[current_node - 1] : 0;
                                  int end = idxes[current_node];
                                  int temp_node_num = node_num + current_node;
                                  HKmeansIter(descriptors[current_level & 1], descriptors[!(current_level & 1)], begin,
                                              end,
                                              current_idxes[current_node], temp_node_num);
-                             });
-//            }
+//                             });
+            }
 //            throw 1;
             node_num += expected_nodes;
             idxes.clear();
@@ -185,9 +185,7 @@ namespace DBoW2 {
                                 int begin, int end) {}
 
     void VocabularyUCHAR::HKmeansIter(std::vector<unsigned char> &descriptors, std::vector<unsigned char> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {
-        if (node_num > 2) {
-            return;
-        }
+
         int size = end - begin;
         if(!size) return;
         std::vector<std::vector<unsigned char>> clusters;
@@ -224,7 +222,7 @@ namespace DBoW2 {
             initiateClustersHKpp(std::vector<unsigned char>(descriptors.begin() + m_desc_len * begin,
                                                     descriptors.begin() + m_desc_len * end), clusters);
             clusters_num = clusters.size();
-            cout << endl;
+//            cout << endl;
 
 //            throw  1;
             bool goon = true;
@@ -234,14 +232,14 @@ namespace DBoW2 {
             while (goon) {
                 nn++;
 //                cout << endl;
-                cout << "desc\n";
-                for (int i = 0; i < clusters.size(); ++i) {
-                    for (int j = 0; j < m_desc_len; ++j) {
-                        cout << (int)clusters[i][j] << " ";
-                    }
-                    cout << endl;
-                }
-                cout << endl;
+//                cout << "desc\n";
+//                for (int i = 0; i < clusters.size(); ++i) {
+//                    for (int j = 0; j < m_desc_len; ++j) {
+//                        cout << (int)clusters[i][j] << " ";
+//                    }
+//                    cout << endl;
+//                }
+//                cout << endl;
                 current_association.clear();
                 current_association.resize(size);
 
@@ -309,17 +307,25 @@ namespace DBoW2 {
                                                      return a;
                                                  }
                 );
-                cout << "sums size " << sums.size() << endl;
-                for (int i = 0; i < sums.size(); ++i) {
-                    for (int j = 0; j < sums[i].size(); ++j) {
-                        cout << sums[i][j] << " ";
-                    }
-                    cout << endl << endl;
-                }
-                cout << endl;
+//                cout << "sums size " << sums.size() << endl;
+//                for (int i = 0; i < sums.size(); ++i) {
+//                    for (int j = 0; j < sums[i].size(); ++j) {
+//                        cout << sums[i][j] << " ";
+//                    }
+//                    cout << endl << endl;
+//                }
+//                cout << endl;
 //                cout << "association\n";
 //                for (int i = 0; i < current_association.size(); ++i) {
 //                    cout << current_association[i] << " ";
+//                }
+//                cout << endl;
+
+//                for (int i = 0; i < sums.size(); ++i) {
+//                    for (int j = 0; j < sums[i].size(); ++j) {
+//                        cout << sums[i][j] << " ";
+//                    }
+//                    cout << endl;
 //                }
 //                cout << endl;
                 tbb::parallel_for(0, clusters_num, [&](int c) {
@@ -373,17 +379,18 @@ namespace DBoW2 {
                     first_time = false;
                 }
                 last_association = current_association;
-                if (nn == 3) {
-                    throw 1;
-                }
+//                if (nn == 3) {
+//                    throw 1;
+//                }
             }
-            cout << "done2\n";
-            throw 1;
+            cout << node_num << " " << nn << endl;
+//            cout << "done2\n";
+//            throw 1;
             cluster_descriptors.clear();
             cluster_descriptors.resize(clusters_num);
             vector<int> ttt(clusters_num, 0);
             for (int i = 0; i < last_association.size(); ++i) {
-                cout << last_association[i] << " ";
+//                cout << last_association[i] << " ";
                 ttt[last_association[i]]++;
                 std::vector<unsigned char> temp;
                 for (int j = 0; j < m_desc_len; ++j) {
@@ -407,9 +414,9 @@ namespace DBoW2 {
             }
 //            cout << "finish\n";
         }
-        if (node_num==2) {
-            throw  1;
-        }
+//        if (node_num==2) {
+//            throw  1;
+//        }
     }
 
     void VocabularyUCHAR::initiateClustersHKpp(
@@ -475,7 +482,7 @@ namespace DBoW2 {
             if(dist_sum > 0)
             {
                 cout.precision(17);
-                cout << "dist sum " << dist_sum << endl;
+//                cout << "dist sum " << dist_sum << endl;
                 double cut_d;
                 do
                 {
@@ -498,7 +505,7 @@ namespace DBoW2 {
                     new_feature.push_back(pfeatures[m_desc_len * ifeature + i]);
                 }
                 clusters.push_back(new_feature);
-                cout << "ifeature " << ifeature << endl;
+//                cout << "ifeature " << ifeature << endl;
             } // if dist_sum > 0
             else
                 break;

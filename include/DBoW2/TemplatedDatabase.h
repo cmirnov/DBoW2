@@ -16,6 +16,7 @@
 #include <string>
 #include <list>
 #include <set>
+#include <tbb/parallel_for.h>
 
 #include "TemplatedVocabulary.h"
 #include "QueryResults.h"
@@ -23,6 +24,7 @@
 #include "BowVector.h"
 #include "FeatureVector.h"
 
+using namespace tbb;
 namespace DBoW2 {
 
 // For query functions
@@ -677,9 +679,14 @@ void TemplatedDatabase<TDescriptor, F>::queryL1(const BowVector &vec,
   //		for all i | v_i != 0 and w_i != 0 
   // (Nister, 2006)
   // scaled_||v - w||_{L1} = 1 - 0.5 * ||v - w||_{L1}
-  QueryResults::iterator qit;
-  for(qit = ret.begin(); qit != ret.end(); qit++) 
-    qit->Score = -qit->Score/2.0;
+  int size = ret.size();
+  parallel_for(0, size, [&ret](int i) {
+    ret[i].Score = -ret[i].Score/2.0;
+  });
+//  QueryResults::iterator qit;
+//
+//  for(qit = ret.begin(); qit != ret.end(); qit++)
+//    qit->Score = -qit->Score/2.0;
 }
 
 // --------------------------------------------------------------------------

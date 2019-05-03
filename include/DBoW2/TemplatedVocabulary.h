@@ -317,10 +317,12 @@ protected:
     /// Word id if the node is a word
     WordId word_id;
 
+    bool created;
+
     /**
      * Empty constructor
      */
-    Node(): id(0), weight(0), parent(0), word_id(0){}
+    Node(): id(0), weight(0), parent(0), word_id(0), created(false){}
     
     /**
      * Constructor
@@ -467,7 +469,7 @@ protected:
   std::vector<Node> m_nodes;
 
   tbb::concurrent_vector<Node> m_nodes_concur;
-
+    int m_desc_len = 64;
 //  concurrent_vector<task_group> g;
   
   /// Words of the vocabulary (tree leaves)
@@ -714,31 +716,35 @@ template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::create2(
         const std::vector<std::vector<TDescriptor> > &training_features, int grainsize)
 {
+//    cout << "begin\n";
     m_grainsize = grainsize;
     m_nodes.clear();
     m_words.clear();
     build_tree();
     std::vector<pDescriptor> features;
-    cout << "1\n";
+//    cout << "1\n";
+//    cout << "feature\n";
     getFeatures(training_features, features);
-    cout << "2\n";
+//    cout << "2\n";
+//    cout << "bfs\n";
     HKmeansStepParallelBFS(0, features, 1);
-    cout << "3\n";
+//    cout << "3\n";
 //        HKmeansStepParallelDFS(0, features, 0, features.size());
     setNodeWeightsParallel(training_features);
 //    cout << "4\n";
-    for (int i = 1; i < m_nodes.size(); ++i) {
-//            cout << "5\n";
-            const cv::Mat &d2 = m_nodes[i].descriptor;
-//            cout << "6\n";
-//            cout << d2.cols << " " << d2.rows << endl;
-            vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
-//            cout << "7\n";
-            for (int j = 0; j < temp2.size(); ++j) {
-                cout << (int)temp2[j] << " ";
-            }
-            cout << endl;
-    }
+//    for (int i = 1; i < m_nodes.size(); ++i) {
+////            cout << "5\n";
+//            const cv::Mat &d2 = m_nodes[i].descriptor;
+////            cout << "6\n";
+////            cout << d2.cols << " " << d2.rows << endl;
+//            vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
+////            cout << "7\n";
+//            for (int j = 0; j < temp2.size(); ++j) {
+//                cout << (int)temp2[j] << " ";
+//            }
+//            cout << endl;
+//    }
+//    throw 1;
 }
 
 template<class TDescriptor, class F>
@@ -791,9 +797,7 @@ void TemplatedVocabulary<TDescriptor, F>::kmeansIter
 
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {
-    if (node_num > 2) {
-        return;
-    }
+
 //    for (int i = 0; i < descriptors.size(); ++i) {
 //        const cv::Mat &d2 = *descriptors[i];
 //        vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
@@ -822,6 +826,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
         }
         for (int c = 0; c < size; ++c) {
             m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
+            m_nodes[m_nodes[node_num].children[c]].created = true;
             idxs.push_back(begin + 1);
             begin++;
         }
@@ -834,8 +839,8 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
         int grainsize =  85;
         initiateClusters(std::vector<pDescriptor>(descriptors.begin() + begin, descriptors.begin() + end), clusters);
         clusters_num = clusters.size();
-        cout << endl;
-        cout << "Im working but changed\n";
+//        cout << endl;
+//        cout << "Im working but changed\n";
 
 //        throw 1;
         bool goon = true;
@@ -844,144 +849,146 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
         int nn = 0;
         while(goon) {
             nn++;
-            for (int i = 0; i < clusters.size(); ++i) {
-                const cv::Mat &d2 = clusters[i];
-                vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
-                for (int j = 0; j < 32; ++j) {
-                    cout << (int)temp2[j] << " ";
-                }
-                cout << endl;
-            }
-            cout << endl;
-            current_association.clear();
-            current_association.resize(size);
-
-            auto sums = tbb::parallel_reduce(tbb::blocked_range<int>(0, size, 73),
-                                             vector<vector<int>>(clusters.size(), vector<int>(32 * 8 + 1, 0)),
-                                             [this, &clusters, &descriptors, &current_association, begin](
-                                                     blocked_range<int> r, vector<vector<int>> sums) {
-                                                 for (int i = r.begin(); i < r.end(); ++i) {
-                                                     double best_dist = F::distance(*descriptors[begin + i], clusters[0]);
-                                                     unsigned int icluster = 0;
-
-                                                     for (unsigned int c = 1; c < clusters.size(); ++c) {
-
-                                                            double dist = F::distance(*descriptors[begin + i],
-                                                                                      clusters[c]);
-                                                            if (dist < best_dist) {
-                                                                best_dist = dist;
-                                                                icluster = c;
-                                                            }
-                                                     }
-                                                     current_association[i] = icluster;
-                                                     sums[icluster].back()++;
-                                                     const cv::Mat &d = *descriptors[begin + i];
-                                                     const unsigned char *p = d.ptr<unsigned char>();
-
-                                                     for(int j = 0; j < d.cols; ++j, ++p)
-                                                     {
-                                                         if(*p & (1 << 7)) ++sums[icluster][ j*8     ];
-                                                         if(*p & (1 << 6)) ++sums[icluster][ j*8 + 1 ];
-                                                         if(*p & (1 << 5)) ++sums[icluster][ j*8 + 2 ];
-                                                         if(*p & (1 << 4)) ++sums[icluster][ j*8 + 3 ];
-                                                         if(*p & (1 << 3)) ++sums[icluster][ j*8 + 4 ];
-                                                         if(*p & (1 << 2)) ++sums[icluster][ j*8 + 5 ];
-                                                         if(*p & (1 << 1)) ++sums[icluster][ j*8 + 6 ];
-                                                         if(*p & (1))      ++sums[icluster][ j*8 + 7 ];
-                                                     }
-                                                 }
-                                                 return sums;
-                                             },
-                                             [this, clusters_num](vector<vector<int>> a,
-                                                                  vector<vector<int>> b) -> vector<vector<int>> {
-                                                 for (int i = 0; i < clusters_num; ++i) {
-                                                     for (int j = 0; j < a[i].size(); ++j) {
-                                                         a[i][j] += b[i][j];
-                                                     }
-                                                 }
-                                                 return a;
-                                             }
-            );
-
-//            cout << "sums size " << sums.size() << endl;
-//            for (int i = 0; i < sums.size(); ++i) {
-//                for (int j = 0; j < sums[i].size(); ++j) {
-//                    cout << sums[i][j] << " ";
+//            for (int i = 0; i < clusters.size(); ++i) {
+//                const cv::Mat &d2 = clusters[i];
+//                vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
+//                for (int j = 0; j < 32; ++j) {
+//                    cout << (int)temp2[j] << " ";
 //                }
-//                cout << endl << endl;
+//                cout << endl;
 //            }
 //            cout << endl;
-//            cout << "association\n";
-//            for (int i = 0; i < current_association.size(); ++i) {
-//                cout << current_association[i] << " ";
-//            }
-//            cout << endl;
-            tbb::parallel_for(0, clusters_num, [&](int c) {
-//            for (int c = 0; c < clusters_num; ++c) {
-                if (sums[c].back() == 0) {
-                    clusters[c].release();
-                } else if (sums[c].back() == 1) {
-                    cout << "one\n";
-                    int idx = -1;
-                    for (int i = 0; i < current_association.size(); ++i) {
-                        if (current_association[i] == c) {
-                            idx = i;
+                current_association.clear();
+                current_association.resize(size);
+
+                auto sums = tbb::parallel_reduce(tbb::blocked_range<int>(0, size, 73),
+                                                 vector<vector<int>>(clusters.size(), vector<int>(m_desc_len * 8 + 1, 0)),
+                                                 [this, &clusters, &descriptors, &current_association, begin](
+                                                         blocked_range<int> r, vector<vector<int>> sums) {
+                                                     for (int i = r.begin(); i < r.end(); ++i) {
+                                                         double best_dist = F::distance(*descriptors[begin + i], clusters[0]);
+                                                         unsigned int icluster = 0;
+
+                                                         for (unsigned int c = 1; c < clusters.size(); ++c) {
+
+                                                                double dist = F::distance(*descriptors[begin + i],
+                                                                                          clusters[c]);
+                                                                if (dist < best_dist) {
+                                                                    best_dist = dist;
+                                                                    icluster = c;
+                                                                }
+                                                         }
+                                                         current_association[i] = icluster;
+                                                         sums[icluster].back()++;
+                                                         const cv::Mat &d = *descriptors[begin + i];
+                                                         const unsigned char *p = d.ptr<unsigned char>();
+
+                                                         for(int j = 0; j < d.cols; ++j, ++p)
+                                                         {
+                                                             if(*p & (1 << 7)) ++sums[icluster][ j*8     ];
+                                                             if(*p & (1 << 6)) ++sums[icluster][ j*8 + 1 ];
+                                                             if(*p & (1 << 5)) ++sums[icluster][ j*8 + 2 ];
+                                                             if(*p & (1 << 4)) ++sums[icluster][ j*8 + 3 ];
+                                                             if(*p & (1 << 3)) ++sums[icluster][ j*8 + 4 ];
+                                                             if(*p & (1 << 2)) ++sums[icluster][ j*8 + 5 ];
+                                                             if(*p & (1 << 1)) ++sums[icluster][ j*8 + 6 ];
+                                                             if(*p & (1))      ++sums[icluster][ j*8 + 7 ];
+                                                         }
+                                                     }
+                                                     return sums;
+                                                 },
+                                                 [this, clusters_num](vector<vector<int>> a,
+                                                                      vector<vector<int>> b) -> vector<vector<int>> {
+                                                     for (int i = 0; i < clusters_num; ++i) {
+                                                         for (int j = 0; j < a[i].size(); ++j) {
+                                                             a[i][j] += b[i][j];
+                                                         }
+                                                     }
+                                                     return a;
+                                                 }
+                );
+
+    //            cout << "sums size " << sums.size() << endl;
+    //            for (int i = 0; i < sums.size(); ++i) {
+    //                for (int j = 0; j < sums[i].size(); ++j) {
+    //                    cout << sums[i][j] << " ";
+    //                }
+    //                cout << endl << endl;
+    //            }
+    //            cout << endl;
+    //            cout << "association\n";
+    //            for (int i = 0; i < current_association.size(); ++i) {
+    //                cout << current_association[i] << " ";
+    //            }
+    //            cout << endl;
+                tbb::parallel_for(0, clusters_num, [&](int c) {
+    //            for (int c = 0; c < clusters_num; ++c) {
+                    if (sums[c].back() == 0) {
+                        clusters[c].release();
+                    } else if (sums[c].back() == 1) {
+    //                    cout << "one\n";
+                        int idx = -1;
+                        for (int i = 0; i < current_association.size(); ++i) {
+                            if (current_association[i] == c) {
+                                idx = i;
+                                break;
+                            }
+                        }
+                        clusters[c] = descriptors[begin + idx]->clone();
+                    } else {
+                        clusters[c] = cv::Mat::zeros(1, m_desc_len, CV_8U);//vector<uchar>(32, 0);
+                        unsigned char *p = clusters[c].template ptr<unsigned char>();
+                        int cluster_size = sums[c].back();
+                        const int N2 = (int) cluster_size / 2 + cluster_size % 2;
+                        for (size_t i = 0; i < sums[c].size() - 1; ++i) {
+                            if (sums[c][i] >= N2) {
+                                // set bit
+                                *p |= 1 << (7 - (i % 8));
+                            }
+
+                            if (i % 8 == 7) ++p;
+                        }
+                    }
+    //                    meanValue(cluster_descriptors[c], clusters[c]);
+                });
+    //            }
+
+                if (!first_time){
+                    goon = false;
+                    for(int i = 0; i < size; ++i) {
+                        if (last_association[i] != current_association[i]) {
+                            goon = true;
                             break;
                         }
                     }
-                    clusters[c] = descriptors[begin + idx]->clone();
                 } else {
-                    clusters[c] = cv::Mat::zeros(1, 32, CV_8U);//vector<uchar>(32, 0);
-                    unsigned char *p = clusters[c].template ptr<unsigned char>();
-                    int cluster_size = sums[c].back();
-                    const int N2 = (int) cluster_size / 2 + cluster_size % 2;
-                    for (size_t i = 0; i < sums[c].size() - 1; ++i) {
-                        if (sums[c][i] >= N2) {
-                            // set bit
-                            *p |= 1 << (7 - (i % 8));
-                        }
-
-                        if (i % 8 == 7) ++p;
-                    }
+                    first_time = false;
                 }
-//                    meanValue(cluster_descriptors[c], clusters[c]);
-            });
+                last_association = current_association;
+//            if (nn == 3) {
+//                throw 1;
 //            }
-
-            if (!first_time){
-                goon = false;
-                for(int i = 0; i < size; ++i) {
-                    if (last_association[i] != current_association[i]) {
-                        goon = true;
-                        break;
-                    }
-                }
-            } else {
-                first_time = false;
-            }
-            last_association = current_association;
-            if (nn == 3) {
-                throw 1;
-            }
         }
-        cout << "norm";
-        throw 1;
+//        cout << node_num << " " << nn << endl;
+//        cout << "norm";
+//        throw 1;
         cluster_descriptors.clear();
         cluster_descriptors.resize(clusters_num, concurrent_vector<pDescriptor>());
 
         vector<int> ttt(clusters_num, 0);
         for (int i = 0; i < last_association.size(); ++i) {
-            ttt[last_association[i]]++;
-            cout << last_association[i] << " ";
+//            ttt[last_association[i]]++;
+//            cout << last_association[i] << " ";
             cluster_descriptors[last_association[i]].push_back(descriptors[begin + i]);
         }
-        cout << endl;
-        for (auto x : ttt) {
-            cout << x << endl;
-        }
-        throw 1;
+//        cout << endl;
+//        for (auto x : ttt) {
+//            cout << x << endl;
+//        }
+//        throw 1;
         for (int c = 0; c < clusters_num; ++c) {
             m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
+            m_nodes[m_nodes[node_num].children[c]].created = true;
             idxs.push_back(begin + cluster_descriptors[c].size());
             for (int i = 0; i < cluster_descriptors[c].size(); ++i) {
                 descriptors[begin + i] = cluster_descriptors[c][i];
@@ -992,9 +999,9 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
             idxs.push_back(idxs.back());
         }
     }
-    if (node_num == 2) {
-        throw 1;
-    }
+//    if (node_num == 2) {
+//        throw 1;
+//    }
 }
 
 
@@ -1378,8 +1385,8 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 
         if(dist_sum > 0)
         {
-            cout.precision(17);
-            cout << ":dist sum " << dist_sum << endl;
+//            cout.precision(17);
+//            cout << ":dist sum " << dist_sum << endl;
             double cut_d;
             do
             {
@@ -1399,7 +1406,7 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
                 ifeature = dit - min_dists.begin();
 
             clusters.push_back(*pfeatures[ifeature]);
-            cout << "ifeature " << ifeature << endl;
+//            cout << "ifeature " << ifeature << endl;
         } // if dist_sum > 0
         else
             break;
@@ -1700,17 +1707,28 @@ void TemplatedVocabulary<TDescriptor,F>::transform(
 
   if(m_weighting == TF || m_weighting == TF_IDF)
   {
-    for(fit = features.begin(); fit < features.end(); ++fit)
-    {
-      WordId id;
-      WordValue w; 
-      // w is the idf value if TF_IDF, 1 if TF
-      
-      transform(*fit, id, w);
-      
-      // not stopped
-      if(w > 0) v.addWeight(id, w);
-    }
+      vector<WordId> ids(features.size());
+      vector<WordValue> ws(features.size());
+        int features_size = features.size();
+      parallel_for(0, features_size, [this, &features, &ids, &ws](int idx) {
+          transform(features[idx], ids[idx], ws[idx]);
+      });
+      for (int i = 0; i < features.size(); ++i) {
+          if (ws[i] > 0) {
+              v.addWeight(ids[i], ws[i]);
+          }
+      }
+//    for(fit = features.begin(); fit < features.end(); ++fit)
+//    {
+//      WordId id;
+//      WordValue w;
+//      // w is the idf value if TF_IDF, 1 if TF
+//
+//      transform(*fit, id, w);
+//
+//      // not stopped
+//      if(w > 0) v.addWeight(id, w);
+//    }
     
     if(!v.empty() && !must)
     {
@@ -1723,6 +1741,7 @@ void TemplatedVocabulary<TDescriptor,F>::transform(
   }
   else // IDF || BINARY
   {
+      cout << "binary\n";
     for(fit = features.begin(); fit < features.end(); ++fit)
     {
       WordId id;
@@ -1858,7 +1877,7 @@ void TemplatedVocabulary<TDescriptor,F>::transform(const TDescriptor &feature,
       nodes2 = m_nodes[final_id].children;
       nodes.clear();
       for (int i = 0; i < nodes2.size(); ++i) {
-          if (m_nodes[nodes2[i]].descriptor.rows * m_nodes[nodes2[i]].descriptor.cols) {
+          if (m_nodes[nodes2[i]].created) {
               nodes.push_back(nodes2[i]);
           }
       }
