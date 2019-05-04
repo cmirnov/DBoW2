@@ -469,7 +469,7 @@ protected:
   std::vector<Node> m_nodes;
 
   tbb::concurrent_vector<Node> m_nodes_concur;
-    int m_desc_len = 64;
+    int m_desc_len = 32;
 //  concurrent_vector<task_group> g;
   
   /// Words of the vocabulary (tree leaves)
@@ -716,35 +716,14 @@ template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::create2(
         const std::vector<std::vector<TDescriptor> > &training_features, int grainsize)
 {
-//    cout << "begin\n";
     m_grainsize = grainsize;
     m_nodes.clear();
     m_words.clear();
     build_tree();
     std::vector<pDescriptor> features;
-//    cout << "1\n";
-//    cout << "feature\n";
     getFeatures(training_features, features);
-//    cout << "2\n";
-//    cout << "bfs\n";
     HKmeansStepParallelBFS(0, features, 1);
-//    cout << "3\n";
-//        HKmeansStepParallelDFS(0, features, 0, features.size());
     setNodeWeightsParallel(training_features);
-//    cout << "4\n";
-//    for (int i = 1; i < m_nodes.size(); ++i) {
-////            cout << "5\n";
-//            const cv::Mat &d2 = m_nodes[i].descriptor;
-////            cout << "6\n";
-////            cout << d2.cols << " " << d2.rows << endl;
-//            vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
-////            cout << "7\n";
-//            for (int j = 0; j < temp2.size(); ++j) {
-//                cout << (int)temp2[j] << " ";
-//            }
-//            cout << endl;
-//    }
-//    throw 1;
 }
 
 template<class TDescriptor, class F>
@@ -798,17 +777,7 @@ void TemplatedVocabulary<TDescriptor, F>::kmeansIter
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &descriptors, int begin, int end, std::vector<int> &idxs, int node_num) {
 
-//    for (int i = 0; i < descriptors.size(); ++i) {
-//        const cv::Mat &d2 = *descriptors[i];
-//        vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
-//        for (int j = 0; j < 32; ++j) {
-//            cout << (int)temp2[j] << " ";
-//        }
-//        cout << endl;
-//    }
-//    throw 1;
     int size = end - begin;
-//    cout << "desc size " << descriptors.size() << endl;
     if(!size) return;
     // features associated to each cluster
     std::vector<TDescriptor> clusters;
@@ -817,7 +786,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
 
     int descriptors_num = descriptors.size();
         int clusters_num = m_k;
-    std::vector<concurrent_vector<pDescriptor>> cluster_descriptors(clusters_num, concurrent_vector<pDescriptor>());
+    std::vector<std::vector<pDescriptor>> cluster_descriptors(clusters_num, std::vector<pDescriptor>());
     if(size <= m_k)
     {
         for(unsigned int i = 0; i < size; i++)
@@ -839,25 +808,10 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
         int grainsize =  85;
         initiateClusters(std::vector<pDescriptor>(descriptors.begin() + begin, descriptors.begin() + end), clusters);
         clusters_num = clusters.size();
-//        cout << endl;
-//        cout << "Im working but changed\n";
-
-//        throw 1;
         bool goon = true;
         bool first_time = true;
         std::vector<int> last_association(size), current_association(size);
-        int nn = 0;
         while(goon) {
-            nn++;
-//            for (int i = 0; i < clusters.size(); ++i) {
-//                const cv::Mat &d2 = clusters[i];
-//                vector<unsigned char> temp2(d2.begin<unsigned char>(), d2.end<unsigned char>());
-//                for (int j = 0; j < 32; ++j) {
-//                    cout << (int)temp2[j] << " ";
-//                }
-//                cout << endl;
-//            }
-//            cout << endl;
                 current_association.clear();
                 current_association.resize(size);
 
@@ -907,26 +861,10 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                                                      return a;
                                                  }
                 );
-
-    //            cout << "sums size " << sums.size() << endl;
-    //            for (int i = 0; i < sums.size(); ++i) {
-    //                for (int j = 0; j < sums[i].size(); ++j) {
-    //                    cout << sums[i][j] << " ";
-    //                }
-    //                cout << endl << endl;
-    //            }
-    //            cout << endl;
-    //            cout << "association\n";
-    //            for (int i = 0; i < current_association.size(); ++i) {
-    //                cout << current_association[i] << " ";
-    //            }
-    //            cout << endl;
                 tbb::parallel_for(0, clusters_num, [&](int c) {
-    //            for (int c = 0; c < clusters_num; ++c) {
                     if (sums[c].back() == 0) {
                         clusters[c].release();
                     } else if (sums[c].back() == 1) {
-    //                    cout << "one\n";
                         int idx = -1;
                         for (int i = 0; i < current_association.size(); ++i) {
                             if (current_association[i] == c) {
@@ -951,7 +889,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                     }
     //                    meanValue(cluster_descriptors[c], clusters[c]);
                 });
-    //            }
 
                 if (!first_time){
                     goon = false;
@@ -965,27 +902,12 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
                     first_time = false;
                 }
                 last_association = current_association;
-//            if (nn == 3) {
-//                throw 1;
-//            }
         }
-//        cout << node_num << " " << nn << endl;
-//        cout << "norm";
-//        throw 1;
         cluster_descriptors.clear();
-        cluster_descriptors.resize(clusters_num, concurrent_vector<pDescriptor>());
-
-        vector<int> ttt(clusters_num, 0);
+        cluster_descriptors.resize(clusters_num, std::vector<pDescriptor>());
         for (int i = 0; i < last_association.size(); ++i) {
-//            ttt[last_association[i]]++;
-//            cout << last_association[i] << " ";
             cluster_descriptors[last_association[i]].push_back(descriptors[begin + i]);
         }
-//        cout << endl;
-//        for (auto x : ttt) {
-//            cout << x << endl;
-//        }
-//        throw 1;
         for (int c = 0; c < clusters_num; ++c) {
             m_nodes[m_nodes[node_num].children[c]].descriptor = clusters[c];
             m_nodes[m_nodes[node_num].children[c]].created = true;
@@ -999,9 +921,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansIter(std::vector<pDescriptor> &d
             idxs.push_back(idxs.back());
         }
     }
-//    if (node_num == 2) {
-//        throw 1;
-//    }
 }
 
 
@@ -1041,7 +960,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
                                              (int)((pow((double)m_k, (double)current_level) - 1)/(m_k - 1));
 
         std::vector<std::vector<int>> current_idxes(expected_nodes, std::vector<int>());
-
         parallel_for(0, expected_nodes, [this, &idxes, &descriptors, node_num, current_level, &current_idxes](int current_node) {
             int begin = current_node > 0 ? idxes[current_node - 1] : 0;
             int end = idxes[current_node];
@@ -1050,7 +968,6 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStepParallelBFS(NodeId parent_id
                         current_idxes[current_node], temp_node_num);
         });
         node_num += expected_nodes;
-//        throw 1;
         idxes.clear();
         for (int current_node = 0; current_node < expected_nodes; ++current_node) {
             for (int i = 0; i < current_idxes[current_node].size(); ++i) {
@@ -1132,7 +1049,7 @@ void TemplatedVocabulary<TDescriptor,F>::getFeatures(
 }
 
 // --------------------------------------------------------------------------
-//45548250190
+
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
   const std::vector<pDescriptor> &descriptors, int current_level) {
@@ -1259,8 +1176,7 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
       }
 
     } // while(goon)
-//      auto end = std::chrono::high_resolution_clock::now();
-//      std::cout << "kmeans" << std::chrono::duration_cast<std::chrono::nanoseconds>(end - statrt).count() << std::endl;
+
   } // if must run kmeans
   // create nodes
 
@@ -1314,11 +1230,9 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
           HKmeansStep(id, child_features, current_level + 1);
         }
       }
-//    kmeansMutex.unlock();
     }
   }
 
-//  std::cout << "all done " << current_level << std::endl;
 }
 
 // --------------------------------------------------------------------------
@@ -1346,7 +1260,7 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
     // 4. Repeat Steps 2 and 3 until k centers have been chosen.
     // 5. Now that the initial centers have been chosen, proceed using standard k-means
     //    clustering.
-
+//    cout << "init\n";
     clusters.resize(0);
     clusters.reserve(m_k);
     std::vector<double> min_dists(pfeatures.size(), std::numeric_limits<double>::max());
@@ -1357,36 +1271,30 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
 
     // create first cluster
     clusters.push_back(*pfeatures[ifeature]);
+    int size = pfeatures.size();
+    parallel_for(0, size, [&pfeatures, &min_dists, &clusters](int i) {
+        min_dists[i] = F::distance(*pfeatures[i], clusters.back());
+    });
 
-    // compute the initial distances
-    typename std::vector<pDescriptor>::const_iterator fit;
     std::vector<double>::iterator dit;
-    dit = min_dists.begin();
-    for(fit = pfeatures.begin(); fit != pfeatures.end(); ++fit, ++dit)
-    {
-        *dit = F::distance(*(*fit), clusters.back());
-    }
 
     while((int)clusters.size() < m_k)
     {
         // 2.
-        dit = min_dists.begin();
-        for(fit = pfeatures.begin(); fit != pfeatures.end(); ++fit, ++dit)
-        {
-            if(*dit > 0)
-            {
-                double dist = F::distance(*(*fit), clusters.back());
-                if(dist < *dit) *dit = dist;
-            }
-        }
 
+        parallel_for(0, size, [&pfeatures, &min_dists, &clusters](int i) {
+            if (min_dists[i] > 0) {
+                double dist = F::distance(*pfeatures[i], clusters.back());
+                if (dist < min_dists[i]) {
+                    min_dists[i] = dist;
+                }
+            }
+        });
         // 3.
         double dist_sum = std::accumulate(min_dists.begin(), min_dists.end(), 0.0);
 
         if(dist_sum > 0)
         {
-//            cout.precision(17);
-//            cout << ":dist sum " << dist_sum << endl;
             double cut_d;
             do
             {
@@ -1406,137 +1314,12 @@ void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
                 ifeature = dit - min_dists.begin();
 
             clusters.push_back(*pfeatures[ifeature]);
-//            cout << "ifeature " << ifeature << endl;
         } // if dist_sum > 0
         else
             break;
 
-    } // while(used_clusters < m_k)
-
+    }
 }
-// --------------------------------------------------------------------------
-//
-//template<class TDescriptor, class F>
-//void TemplatedVocabulary<TDescriptor,F>::initiateClustersKMpp(
-//  const std::vector<pDescriptor> &pfeatures,
-//    std::vector<TDescriptor> &clusters) const
-//{
-//  // Implements kmeans++ seeding algorithm
-//  // Algorithm:
-//  // 1. Choose one center uniformly at random from among the data points.
-//  // 2. For each data point x, compute D(x), the distance between x and the nearest
-//  //    center that has already been chosen.
-//  // 3. Add one new data point as a center. Each point x is chosen with probability
-//  //    proportional to D(x)^2.
-//  // 4. Repeat Steps 2 and 3 until k centers have been chosen.
-//  // 5. Now that the initial centers have been chosen, proceed using standard k-means
-//  //    clustering.
-//
-//  clusters.resize(0);
-//  clusters.reserve(m_k);
-////  tbb::concurrent_vector<double> min_dists(pfeatures.size(), std::numeric_limits<double>::max());
-//  std::vector<double> min_dists(pfeatures.size(), std::numeric_limits<double>::max());
-//  // 1.
-//
-//  int ifeature = RandomInt(0, pfeatures.size()-1);
-//
-//  // create first cluster
-//  clusters.push_back(*pfeatures[ifeature]);
-//
-//  // compute the initial distances
-//  typename std::vector<pDescriptor>::const_iterator fit;
-////  tbb::concurrent_vector<double>::iterator dit;
-//  std::vector<double>::iterator dit;
-//  dit = min_dists.begin();
-////  int size =  pfeatures.size();
-////  std::cout << size << std::endl;
-////  tbb::parallel_for(0, size, [&](int i) {
-////      min_dists[i] = F::distance(*pfeatures[i], clusters.back());
-////  });
-//
-////41896382142
-////51134457109
-////  std::cout << "inti: " << min_dists.size() << std::endl << pfeatures.size() << std::endl;
-//  for(fit = pfeatures.begin(); fit != pfeatures.end(); ++fit, ++dit)
-//  {
-////    std::cout << *fit << std::endl;
-////    std::cout << *dit << std::endl;
-//    *dit = F::distance(*(*fit), clusters.back());
-//  }
-////  std::cout << "running\n";
-//  while((int)clusters.size() < m_k)
-//  {
-//    // 2.
-//    dit = min_dists.begin();
-////    tbb::parallel_for(0, size, [&](int i) {
-////      if (min_dists[i] > 0) {
-////        double dist = F::distance(*pfeatures[i], clusters.back());
-////        if(dist < min_dists[i]) min_dists[i] = dist;
-////      }
-//////        min_dists[i] = F::distance(*pfeatures[i], clusters.back());
-////    });
-////    std::cout << "before for\n";
-//    for(fit = pfeatures.begin(); fit != pfeatures.end(); ++fit, ++dit)
-//    {
-////      std::cout << *dit << std::endl;
-//      if(*dit > 0)
-//      {
-//        double dist = F::distance(*(*fit), clusters.back());
-//        if(dist < *dit) *dit = dist;
-//      }
-//    }
-////
-//    // 3.
-//    double dist_sum = std::accumulate(min_dists.begin(), min_dists.end(), 0.0);
-//    if(dist_sum > 0)
-//    {
-//      double cut_d;
-//      do
-//      {
-//        cut_d = RandomValue<double>(0, dist_sum);
-//      } while(cut_d == 0.0);
-//
-//      double d_up_now = 0;
-//      for(dit = min_dists.begin(); dit != min_dists.end(); ++dit)
-//      {
-//        d_up_now += *dit;
-//        if(d_up_now >= cut_d) break;
-//      }
-//
-//      if(dit == min_dists.end())
-//        ifeature = pfeatures.size()-1;
-//      else
-//        ifeature = dit - min_dists.begin();
-//
-//      clusters.push_back(*pfeatures[ifeature]);
-//
-//    } // if dist_sum > 0
-//    else
-//      break;
-//
-//  } // while(used_clusters < m_k)
-//  for (auto cl: clusters) {
-//    std::cout << cl << std::endl;
-//  }
-//  std::cout << std::endl;
-/*
- * 125000
-125000
-67016
-67016
-39448
-39448
-27568
-27568
-57984
-57984
-35616
-35616
-22368
-22368
-
- */
-//}
 
 // --------------------------------------------------------------------------
 
