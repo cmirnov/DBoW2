@@ -104,7 +104,7 @@ namespace DBoW2 {
                                     int current_level);
         void HKmeansStepParallelDFS(NodeId parent_id, std::vector<unsigned char> &descriptors,
                                     int begin, int end);
-        void HKmeansIter(std::vector<unsigned char> &descriptors, std::vector<unsigned char> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num);
+        void HKmeansIter(std::vector<unsigned char> &descriptors, std::vector<unsigned char> &new_descriptors, int begin, int end, std::vector<int> &idxs, int node_num, int level);
 
 
 
