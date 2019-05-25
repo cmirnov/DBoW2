@@ -17,6 +17,9 @@
 #include <list>
 #include <set>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_for_each.h>
+#include <tbb/task_group.h>
+#include <tbb/concurrent_hash_map.h>
 
 #include "TemplatedVocabulary.h"
 #include "QueryResults.h"
@@ -571,6 +574,7 @@ void TemplatedDatabase<TDescriptor, F>::query(
   QueryResults &ret, int max_results, int max_id) const
 {
   BowVector vec;
+//  cout << "features\t" << features.size() << endl;
   m_voc->transform(features, vec);
   query(vec, ret, max_results, max_id);
 }
@@ -618,54 +622,71 @@ template<class TDescriptor, class F>
 void TemplatedDatabase<TDescriptor, F>::queryL1(const BowVector &vec, 
   QueryResults &ret, int max_results, int max_id) const
 {
+//    printf("%d\n", vec.size());
   BowVector::const_iterator vit;
   typename IFRow::const_iterator rit;
-    
-  std::map<EntryId, double> pairs;
-  std::map<EntryId, double>::iterator pit;
-  
-  for(vit = vec.begin(); vit != vec.end(); ++vit)
-  {
-    const WordId word_id = vit->first;
-    const WordValue& qvalue = vit->second;
-        
-    const IFRow& row = m_ifile[word_id];
-    
-    // IFRows are sorted in ascending entry_id order
-    
-    for(rit = row.begin(); rit != row.end(); ++rit)
-    {
-      const EntryId entry_id = rit->entry_id;
-      const WordValue& dvalue = rit->word_weight;
-      
-      if((int)entry_id < max_id || max_id == -1)
-      {
-        double value = fabs(qvalue - dvalue) - fabs(qvalue) - fabs(dvalue);
-        
-        pit = pairs.lower_bound(entry_id);
-        if(pit != pairs.end() && !(pairs.key_comp()(entry_id, pit->first)))
-        {
-          pit->second += value;
-        }
-        else
-        {
-          pairs.insert(pit, 
-            std::map<EntryId, double>::value_type(entry_id, value));
-        }
-      }
-      
-    } // for each inverted row
-  } // for each query word
-	
+
+//  std::map<EntryId, double> pairs;
+    tbb::concurrent_hash_map<EntryId, double> pairs;
+  tbb::concurrent_hash_map<EntryId, double>::iterator pit;
+//  tbb::task_group g;
+    parallel_for_each(vec.begin(), vec.end(), [&](pair<WordId, WordValue> vit) {
+//  for(vit = vec.begin(); vit != vec.end(); ++vit)
+//  {
+//      g.run([&]
+//      {
+          const WordId word_id = vit.first;
+          const WordValue& qvalue = vit.second;
+
+          const IFRow& row = m_ifile[word_id];
+//    printf("%d\n", row.size());
+          // IFRows are sorted in ascending entry_id order
+
+                parallel_for_each(row.begin(), row.end(), [&](IFPair rit){
+
+//          for(rit = row.begin(); rit != row.end(); ++rit)
+//          {
+              const EntryId entry_id = rit.entry_id;
+              const WordValue& dvalue = rit.word_weight;
+
+              if((int)entry_id < max_id || max_id == -1)
+              {
+                  tbb::concurrent_hash_map<EntryId, double>::accessor a;
+                  double value = fabs(qvalue - dvalue) - fabs(qvalue) - fabs(dvalue);
+                  pairs.insert(a, entry_id);
+                  a->second += value;
+//                  if (pairs.find(a, entry_id)) {
+//                      pairs[entry_id] += value;
+//                  } else {
+//                      pairs[entry_id] = value;
+//                  }
+//                  pit = pairs.lower_bound(entry_id);
+//                  if(pit != pairs.end() && !(pairs.key_comp()(entry_id, pit->first)))
+//                  {
+//                      pit->second += value;
+//                  }
+//                  else
+//                  {
+//                      pairs.insert(pit,
+//                                   std::map<EntryId, double>::value_type(entry_id, value));
+//                  }
+              }
+
+//          }
+         });
+      });
+
+//  } // for each query word
+//  g.wait();
   // move to vector
   ret.reserve(pairs.size());
   for(pit = pairs.begin(); pit != pairs.end(); ++pit)
   {
     ret.push_back(Result(pit->first, pit->second));
   }
-	
-  // resulting "scores" are now in [-2 best .. 0 worst]	
-  
+
+  // resulting "scores" are now in [-2 best .. 0 worst]
+
   // sort vector in ascending order of score
   std::sort(ret.begin(), ret.end());
   // (ret is inverted now --the lower the better--)
@@ -673,20 +694,37 @@ void TemplatedDatabase<TDescriptor, F>::queryL1(const BowVector &vec,
   // cut vector
   if(max_results > 0 && (int)ret.size() > max_results)
     ret.resize(max_results);
-  
+
   // complete and scale score to [0 worst .. 1 best]
-  // ||v - w||_{L1} = 2 + Sum(|v_i - w_i| - |v_i| - |w_i|) 
-  //		for all i | v_i != 0 and w_i != 0 
+  // ||v - w||_{L1} = 2 + Sum(|v_i - w_i| - |v_i| - |w_i|)
+  //		for all i | v_i != 0 and w_i != 0
   // (Nister, 2006)
   // scaled_||v - w||_{L1} = 1 - 0.5 * ||v - w||_{L1}
   int size = ret.size();
-  parallel_for(0, size, [&ret](int i) {
-    ret[i].Score = -ret[i].Score/2.0;
-  });
-//  QueryResults::iterator qit;
+//  parallel_for(0, size, [&ret](int i) {
+//    ret[i].Score = -ret[i].Score/2.0;
+//  });
+  QueryResults::iterator qit;
+
+  for(qit = ret.begin(); qit != ret.end(); qit++)
+    qit->Score = -qit->Score/2.0;
+
+
+//  tbb::concurrent_hash_map<EntryId, double> pairs;
+//  map<int, int> temp;
+//  vector<int> a;
 //
-//  for(qit = ret.begin(); qit != ret.end(); qit++)
-//    qit->Score = -qit->Score/2.0;
+//  for (int i = 0; i  < 10; ++i) {
+//      temp[i] = i;
+//  }
+//
+////  parallel_for( tbb::blocked_range<map<WordId,WordValue>::iterator>(vec.begin(), vec.end()), [&](tbb::blocked_range<map<WordId,WordValue>::iterator> x){
+//  parallel_for( tbb::blocked_range<map<int,int>::iterator>(temp.begin(), temp.end()), [&](tbb::blocked_range<map<int,int>::iterator> x){
+//      int c = 2;
+//  });
+//  parallel_for(0, 4, [&](int i){
+//      int a = 2;
+//  });
 }
 
 // --------------------------------------------------------------------------
