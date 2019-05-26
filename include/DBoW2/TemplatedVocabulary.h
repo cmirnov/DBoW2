@@ -722,7 +722,7 @@ void TemplatedVocabulary<TDescriptor,F>::create2(
     m_words.clear();
     build_tree();
     std::vector<pDescriptor> features;
-    getFeatures(training_features, features;
+    getFeatures(training_features, features);
     HKmeansStepParallelBFS(0, features, 1);
     setNodeWeightsParallel(training_features);
 }
