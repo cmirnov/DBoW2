@@ -73,3 +73,17 @@ The `F` parameter is the name of a class that implements the functions defined i
 ### Predefined Vocabularies and Databases
 
 To make it easier to use, DBoW2 defines two kinds of vocabularies and databases: `OrbVocabulary`, `OrbDatabase`, `BriefVocabulary`, `BriefDatabase`. Please, check the demo application to see how they are created and used.
+
+### How to run
+
+Run in terminal to test multithread CPU version with ORB descriptors. 
+```make && ./Demo```
+
+There is a possibility to run GPGPU version. To do that you should change main function to 
+
+```
+    vector<vector<uchar> > features;
+    loadFeaturesUCHAR(features);
+    testVocCreationUCHAR(features, 73);
+```
+
