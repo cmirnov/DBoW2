@@ -77,7 +77,7 @@ To make it easier to use, DBoW2 defines two kinds of vocabularies and databases:
 ### How to run
 
 Run in terminal to test multithread CPU version with ORB descriptors. 
-```make && ./Demo```
+```cmake . && make && ./Demo```
 
 There is a possibility to run GPGPU version. To do that you should change main function to 
 
@@ -87,3 +87,11 @@ There is a possibility to run GPGPU version. To do that you should change main f
     testVocCreationUCHAR(features, 73);
 ```
 
+In case you have linking issues  you should manually add path to tbb library link file
+```
+cmake .
+whereis libtbb
+#libtbb: /usr/lib/x86_64-linux-gnu/libtbb.so
+#copy to the CMakeFiles/DBoW2.dir/link.txt and CMakeFiles/Demo.dir/link.txt
+make && ./Demo
+```
